@@ -8,13 +8,19 @@ Visual Studio 2019
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的项目，谢谢
 
 https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
+
 https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file
+
 https://github.com/SchineCompton/Antinvader
+
 https://github.com/shines77/Antinvader2015
+
 https://github.com/comor86/MyMiniEncrypt
+
 https://github.com/xiao70/X70FSD
 
 暂时实现了简单的异或加密解密；写入，识别，对记事本隐藏加密文件头
+
 接下来将会使用比较复杂的加密解密算法，考虑文件缓冲方面的问题
 
 
