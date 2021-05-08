@@ -21,7 +21,7 @@ https://github.com/xiao70/X70FSD
 
 《Windows内核安全与驱动开发》
 
-<Windows NT File System Internals>
+《Windows NT File System Internals》
 
 暂时实现了简单的异或加密解密；写入，识别，对记事本隐藏加密文件头
 
