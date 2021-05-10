@@ -1,6 +1,7 @@
 
 #include "swapbuffers.h"
 #include "common.h"
+#include "context.h"
 
 
 BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID* CompletionContext)

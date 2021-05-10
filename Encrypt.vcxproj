@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommPort.c" />
     <ClCompile Include="SwapBuffers.c" />
     <ClCompile Include="Common.c" />
     <ClCompile Include="Context.c" />
@@ -79,6 +80,7 @@
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -188,6 +190,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
+    <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="global.h" />
     <ClInclude Include="swapbuffers.h" />

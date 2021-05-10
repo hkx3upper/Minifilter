@@ -2,6 +2,19 @@
 
 #include "global.h"
 
+typedef struct SWAP_BUFFER_CONTEXT {
+
+	//  Since the post-operation parameters always receive the "original"
+	//  parameters passed to the operation, we need to pass our new destination
+	//  buffer to our post operation routine so we can free it.
+
+	PVOID NewBuffer;
+	PMDL NewMdlAddress;
+
+	//PVOLUME_CONTEXT pVolumeContext;
+
+}SWAP_BUFFER_CONTEXT, * PSWAP_BUFFER_CONTEXT;
+
 #define SWAP_WRITE_CONTEXT_TAG 'swCT'
 #define SWAP_WRITE_BUFFER_TAG 'swBF'
 #define SWAP_READ_CONTEXT_TAG 'srCT'

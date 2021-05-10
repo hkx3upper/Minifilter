@@ -18,6 +18,7 @@ Environment:
 #include "common.h"
 #include "context.h"
 #include "swapbuffers.h"
+#include "commport.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -517,6 +518,12 @@ Return Value:
 
             FltUnregisterFilter( gFilterHandle );
         }
+
+        if (!EptInitCommPort())
+        {
+            FltUnregisterFilter(gFilterHandle);
+        }
+
     }
 
     return status;
@@ -551,6 +558,8 @@ Return Value:
 
     PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
                   ("Encrypt!EncryptUnload: Entered\n") );
+
+    EptCloseCommPort();
 
     FltUnregisterFilter( gFilterHandle );
 
