@@ -1,8 +1,11 @@
 #pragma once
 
-#include <fltKernel.h>
-#include <dontuse.h>
+#include <Windows.h>
+#include <stdio.h>
 
-extern PFLT_FILTER gFilterHandle;
+#include <fltUser.h>
 
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "fltLib.lib")
 

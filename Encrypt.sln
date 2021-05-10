@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31025.194
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Encrypt", "Encrypt.vcxproj", "{86875795-45FC-45D3-8029-F30597CA2973}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Encrypt", "Encrypt\Encrypt.vcxproj", "{86875795-45FC-45D3-8029-F30597CA2973}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EncryptUser", "EncryptUser\EncryptUser.vcxproj", "{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +43,18 @@ Global
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.ActiveCfg = Release|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.Build.0 = Release|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.Deploy.0 = Release|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|ARM.ActiveCfg = Debug|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x64.ActiveCfg = Debug|x64
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x64.Build.0 = Debug|x64
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x86.ActiveCfg = Debug|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x86.Build.0 = Debug|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|ARM.ActiveCfg = Release|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|ARM64.ActiveCfg = Release|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x64.ActiveCfg = Release|x64
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x64.Build.0 = Release|x64
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x86.ActiveCfg = Release|Win32
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
