@@ -1,5 +1,12 @@
 
-#include "global.h"
+#include <Windows.h>
+#include <stdio.h>
+
+#include <fltUser.h>
+
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "kernel32.lib")
+#pragma comment(lib, "fltLib.lib")
 
 HANDLE hPort;
 #define COMMPORTNAME L"\\Encrypt-hkx3upper"
