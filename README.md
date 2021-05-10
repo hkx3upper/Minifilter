@@ -3,6 +3,7 @@
 
 运行环境：
 Windows 10 x64
+
 Visual Studio 2019
 
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
@@ -41,10 +42,12 @@ https://github.com/xiao70/X70FSD
 //比较重要的是，加上IRP_MJ_CLEANUP，在PreCleanUp中清一下缓存，EptFileCacheClear(FltObjects->FileObject);这样才能进到Pre/PostRead中
 
 //在PreRead和PreWrite中过滤掉以下两步
+
 if (!FlagOn(Data->Iopb->IrpFlags, (IRP_PAGING_IO | IRP_SYNCHRONOUS_PAGING_IO | IRP_NOCACHE)))
     return FLT_PREOP_SUCCESS_NO_CALLBACK;
 
 //判断是否为目标扩展名，进一步筛选，减少后续操作
+
 if (!EptIsTargetExtension(Data))
     return FLT_PREOP_SUCCESS_NO_CALLBACK;
 
