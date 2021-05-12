@@ -38,6 +38,8 @@ https://github.com/xiao70/X70FSD
 
 《Windows NT File System Internals》
 
+何明 基于Minifilter微框架的文件加解密系统的设计与实现 计算机科学与技术 2014 年 6 月 
+
 # 以下是主要的步骤：
 
 ## 按照逐步搭建最小化系统的原则，先根据微软Sample的SwapBuffers实现简单的加密，解密
