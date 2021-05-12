@@ -22,23 +22,15 @@ Visual Studio 2019
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
 
-https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
-
-https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file
-
-https://github.com/SchineCompton/Antinvader
-
-https://github.com/shines77/Antinvader2015
-
-https://github.com/comor86/MyMiniEncrypt
-
-https://github.com/xiao70/X70FSD
-
-《Windows内核安全与驱动开发》
-
-《Windows NT File System Internals》
-
-何明 基于Minifilter微框架的文件加解密系统的设计与实现 计算机科学与技术 2014 年 6 月 
+https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers  
+https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file  
+https://github.com/SchineCompton/Antinvader  
+https://github.com/shines77/Antinvader2015  
+https://github.com/comor86/MyMiniEncrypt  
+https://github.com/xiao70/X70FSD  
+《Windows内核安全与驱动开发》  
+《Windows NT File System Internals》  
+何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月   
 
 # 以下是主要的步骤：
 
