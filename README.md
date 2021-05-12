@@ -74,8 +74,7 @@ if (!EptIsTargetExtension(Data))
 
 # 关于写入，识别，对记事本隐藏加密文件头，这部分完全按照《Windows内核安全与驱动开发》是不合适的
 
-//尤其是以下标记（重要）的步骤是需要补充的，另外不建议直接在上一步的加密解密Sample中添加修改，
-
+//尤其是以下标记（重要）的步骤是需要补充的，另外不建议直接在上一步的加密解密Sample中添加修改，  
 //建议另外新建项目，单纯实现写入，识别，对记事本隐藏加密文件头，最后组合在一起
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,8 +107,7 @@ Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &Fi
 ```
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//读取加密文件头
-
+//读取加密文件头  
 //将文件读入缓冲区
 ```
 ByteOffset.QuadPart = BytesRead = 0;
@@ -120,8 +118,7 @@ Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, 
 
 //对记事本隐藏文件头
 
-//Read和Write同理，这里只展示Read
-
+//Read和Write同理，这里只展示Read  
 //PreRead:
 
 //忽略以下操作（重要）
@@ -145,10 +142,8 @@ FltSetCallbackDataDirty(Data);
 
 //第三步，这里我们把以上两部分组合在一起，实现一个最小化的基本功能的加密解密系统
 
-//这里需要添加的是IRP_MJ_QUERY_INFORMATION和IRP_MJ_SET_INFORMATION
-
-//因为在PreRead和PreWrite中，对Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;做了调整
-
+//这里需要添加的是IRP_MJ_QUERY_INFORMATION和IRP_MJ_SET_INFORMATION  
+//因为在PreRead和PreWrite中，对Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;做了调整  
 //所以需要在PostQueryInformation和PreSetInformation中对相关的选项进行调整，这里不再赘述
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -165,8 +160,7 @@ FltSetCallbackDataDirty(Data);
 
 # 从客户端传入信任进程和扩展名匹配规则到驱动
 
-//使用结构体
-
+//使用结构体  
 //扩展名用 , （英文）分隔，用 , （英文）结束 例如：txt,docx，并在count中记录数量
 ```
 typedef struct EPT_PROCESS_RULES
