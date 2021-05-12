@@ -9,27 +9,35 @@ Visual Studio 2019
 
 # 更新日志：
 
-2021.5.5   实现了基于SwapBuffers的异或加密解密
+2021.05.05 实现了基于SwapBuffers的异或加密解密
 
-2021.5.7   写入、识别加密文件头，对记事本隐藏加密文件头
+2021.05.07 写入、识别加密文件头，对记事本隐藏加密文件头
 
-2021.5.10 实现了应用端到驱动的简单通信
+2021.05.10 实现了应用端到驱动的简单通信
 
-2021.5.12 实现了从客户端传入信任进程和扩展名匹配规则到驱动（将来可以用链表保存）
+2021.05.12 实现了从客户端传入信任进程和扩展名匹配规则到驱动（将来可以用链表保存）
 
 接下来将会考虑双缓冲方面的问题，考虑使用AES-128（数据分组对齐）
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
 
-https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers  
-https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file  
-https://github.com/SchineCompton/Antinvader  
-https://github.com/shines77/Antinvader2015  
-https://github.com/comor86/MyMiniEncrypt  
-https://github.com/xiao70/X70FSD  
-《Windows内核安全与驱动开发》  
-《Windows NT File System Internals》  
+https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
+
+https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file
+
+https://github.com/SchineCompton/Antinvader
+
+https://github.com/shines77/Antinvader2015
+
+https://github.com/comor86/MyMiniEncrypt
+
+https://github.com/xiao70/X70FSD
+
+《Windows内核安全与驱动开发》
+
+《Windows NT File System Internals》
+
 何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月   
 
 # 以下是主要的步骤：
