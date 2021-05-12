@@ -1,13 +1,13 @@
 # Minifilter
 参考《Windows内核安全与驱动开发》的加密解密Minifilter
 
-运行环境：
+# 运行环境：
 
 Windows 10 x64
 
 Visual Studio 2019
 
-更新日志：
+# 更新日志：
 
 2021.5.5   实现了基于SwapBuffers的异或加密解密
 
@@ -19,6 +19,7 @@ Visual Studio 2019
 
 接下来将会考虑双缓冲方面的问题，考虑使用AES-128（数据分组对齐）
 
+# 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
 
 https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
