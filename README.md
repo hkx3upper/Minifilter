@@ -84,7 +84,6 @@ if (!EptIsTargetExtension(Data))
 //分配大小
 
 FileEOFInfo.EndOfFile.QuadPart = FILE_FLAG_SIZE;
-
 Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FileEOFInfo, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
 
 //初始化事件
@@ -94,7 +93,6 @@ KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 //写入加密标记头
 
 ByteOffset.QuadPart = BytesWritten = 0;
-
 Status = FltWriteFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, Buffer,
 	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesWritten, EptWriteCallbackRoutine, &Event);
 
@@ -105,7 +103,6 @@ KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 //修改文件指针偏移（重要）
 
 FilePositionInfo.CurrentByteOffset.QuadPart = 0;
-
 Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FilePositionInfo, sizeof(FILE_POSITION_INFORMATION), FilePositionInformation);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +112,6 @@ Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &Fi
 //将文件读入缓冲区
 
 ByteOffset.QuadPart = BytesRead = 0;
-
 Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, ReadBuffer,
 	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesRead, NULL, NULL);
 
@@ -142,7 +138,6 @@ if (!FlagOn(Data->Iopb->IrpFlags, (IRP_PAGING_IO | IRP_SYNCHRONOUS_PAGING_IO | I
 //设置偏移加FILE_FLAG_SIZE（重要）
 
 Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;
-
 FltSetCallbackDataDirty(Data);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,7 +203,6 @@ for (int i = 0; i < ProcessRules.count; i++)
     {
         memset(TempExtension, 0, sizeof(TempExtension));
         count = 0;
-
         while (strncmp(lpExtension, ",", 1))
         {
             TempExtension[count++] = *lpExtension;
