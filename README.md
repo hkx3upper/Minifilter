@@ -6,6 +6,14 @@ Windows 10 x64
 
 Visual Studio 2019
 
+更新日志：
+2021.5.5   实现了基于SwapBuffers的异或加密解密
+2021.5.7   写入、识别加密文件头，对记事本隐藏加密文件头
+2021.5.10 实现了应用端到驱动的简单通信
+2021.5.12 实现了从客户端传入信任进程和扩展名匹配规则到驱动（将来可以用链表保存）
+
+接下来将会考虑双缓冲方面的问题，考虑使用AES-128（数据分组对齐）
+
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
 
 https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
@@ -23,10 +31,6 @@ https://github.com/xiao70/X70FSD
 《Windows内核安全与驱动开发》
 
 《Windows NT File System Internals》
-
-暂时实现了简单的异或加密解密；写入，识别，对记事本隐藏加密文件头，实现了应用端到驱动的简单通信
-
-接下来将会考虑双缓冲方面的问题，考虑使用AES-128（数据分组对齐），考虑在客户端设置信任进程和扩展名并传入驱动。
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,8 +127,6 @@ Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;
 FltSetCallbackDataDirty(Data);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //第三步，这里我们把以上两部分组合在一起，实现一个最小化的基本功能的加密解密系统
 
@@ -133,3 +135,78 @@ FltSetCallbackDataDirty(Data);
 //因为在PreRead和PreWrite中，对Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;做了调整
 
 //所以需要在PostQueryInformation和PreSetInformation中对相关的选项进行调整，这里不再赘述
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//应用端到驱动的简单通信
+
+//这一步按照《Windows内核安全与驱动开发》就可以了
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//从客户端传入信任进程和扩展名匹配规则到驱动
+
+//使用结构体
+//扩展名用 , （英文）分隔，用 , （英文）结束 例如：txt,docx，并在count中记录数量
+typedef struct EPT_PROCESS_RULES
+{
+	char TargetProcessName[260];
+	char TargetExtension[100];
+	int count;
+}EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
+
+//客户端发送进程规则
+memset(Buffer, 0, MESSAGE_SIZE);
+MessageHeader.Command = 2;
+MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
+RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
+
+RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
+ProcessRules.count = 1;
+RtlMoveMemory(Buffer + sizeof(MessageHeader), &ProcessRules, sizeof(EPT_PROCESS_RULES));
+
+if (!EptUserSendMessage(Buffer))
+{
+	printf("EptUserSendMessage failed.\n");
+	return 0;
+}
+
+//在驱动MessageNotifyCallback函数中接收
+RtlMoveMemory(&ProcessRules, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES));
+
+//将扩展名分隔开，并比较
+for (int i = 0; i < ProcessRules.count; i++)
+    {
+        memset(TempExtension, 0, sizeof(TempExtension));
+        count = 0;
+
+        while (strncmp(lpExtension, ",", 1))
+        {
+            TempExtension[count++] = *lpExtension;
+            //DbgPrint("lpExtension = %s.\n", lpExtension);
+            lpExtension++;
+        }
+
+        RtlInitAnsiString(&AnsiTempExtension, TempExtension);
+        AnsiTempExtension.MaximumLength = sizeof(TempExtension);
+
+        if (NT_SUCCESS(RtlAnsiStringToUnicodeString(&Extension, &AnsiTempExtension, TRUE)))
+        {
+            if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
+            {
+                FltReleaseFileNameInformation(FileNameInfo);
+                RtlFreeUnicodeString(&Extension);
+                //DbgPrint("EptIsTargetExtension hit.\n");
+                return TRUE;
+            }
+
+            RtlFreeUnicodeString(&Extension);
+        }
+        //跳过逗号
+        lpExtension++;
+    }
