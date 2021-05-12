@@ -48,7 +48,7 @@ https://github.com/xiao70/X70FSD
 
 //首先需要把项目属性Drivers Settings->Target Platform改成Desktop
 
-//比较重要的是，加上IRP_MJ_CLEANUP，在PreCleanUp中清一下缓存，EptFileCacheClear(FltObjects->FileObject);这样才能进到Pre/PostRead中
+//关于缓冲方面的问题，加上IRP_MJ_CLEANUP，在PreCleanUp中清一下缓存，EptFileCacheClear(FltObjects->FileObject);
 
 //在PreRead和PreWrite中过滤掉以下两步
 ```
