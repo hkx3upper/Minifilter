@@ -1,16 +1,7 @@
 
-#include <Windows.h>
-#include <stdio.h>
-
-#include <fltUser.h>
-
-#pragma comment(lib, "user32.lib")
-#pragma comment(lib, "kernel32.lib")
-#pragma comment(lib, "fltLib.lib")
+#include "global.h"
 
 HANDLE hPort;
-#define COMMPORTNAME L"\\Encrypt-hkx3upper"
-#define MESSAGE_SIZE 256
 
 BOOLEAN EptUserInitCommPort()
 {
@@ -47,6 +38,10 @@ BOOLEAN EptUserSendMessage(LPVOID lpInBuffer)
 int main() 
 {
 
+	EPT_MESSAGE_HEADER MessageHeader;
+	EPT_PROCESS_RULES ProcessRules;
+	char Buffer[MESSAGE_SIZE];
+
 	printf("Hello World.\n");
 
 	if (!EptUserInitCommPort())
@@ -55,16 +50,37 @@ int main()
 		return 0;
 	}
 
-	char Buffer[MESSAGE_SIZE];
+	//发送一个Hello
 	memset(Buffer, 0, MESSAGE_SIZE);
+	MessageHeader.Command = 1;
+	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
 
-	RtlMoveMemory(Buffer, "Test from Encrypt User", sizeof("Test from Encrypt User"));
+	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
+	RtlMoveMemory(Buffer + sizeof(MessageHeader), "Hello driver, test from Encrypt User", sizeof("Hello driver, test from Encrypt User"));
 
 	if (!EptUserSendMessage(Buffer))
 	{
 		printf("EptUserSendMessage failed.\n");
 		return 0;
 	}
+
+	//发送进程规则
+	memset(Buffer, 0, MESSAGE_SIZE);
+	MessageHeader.Command = 2;
+	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
+	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
+
+	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+	RtlMoveMemory(ProcessRules.TargetExtension, "txt,lys,", sizeof("txt,lys,"));
+	ProcessRules.count = 2;
+	RtlMoveMemory(Buffer + sizeof(MessageHeader), &ProcessRules, sizeof(EPT_PROCESS_RULES));
+
+	if (!EptUserSendMessage(Buffer))
+	{
+		printf("EptUserSendMessage failed.\n");
+		return 0;
+	}
+
 
 	return 0;
 }

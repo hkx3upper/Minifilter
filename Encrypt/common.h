@@ -18,7 +18,7 @@ extern EptQueryInformationProcess pEptQueryInformationProcess;
 
 VOID EptBreakPointOnce();
 
-BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data, CHAR* TargetName);
+BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data);
 
 BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data);
 

@@ -4,5 +4,3 @@
 #include <dontuse.h>
 
 extern PFLT_FILTER gFilterHandle;
-
-

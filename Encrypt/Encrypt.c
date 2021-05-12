@@ -495,7 +495,9 @@ Return Value:
     RtlInitUnicodeString(&FuncName, L"ZwQueryInformationProcess");
     pEptQueryInformationProcess = (EptQueryInformationProcess)(ULONG_PTR)MmGetSystemRoutineAddress(&FuncName);
 
-    
+    RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+    RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
+    ProcessRules.count = 1;
     //
     //  Register with FltMgr to tell it our callback routines
     //
@@ -561,7 +563,10 @@ Return Value:
 
     EptCloseCommPort();
 
-    FltUnregisterFilter( gFilterHandle );
+    if (gFilterHandle)
+    {
+        FltUnregisterFilter(gFilterHandle);
+    }
 
     return STATUS_SUCCESS;
 }
@@ -584,7 +589,6 @@ EncryptPreCreate(
     PAGED_CODE();
 
     PEPT_STREAM_CONTEXT StreamContext;
-    CHAR TargetName[260] = "notepad.exe";
 
     if (FlagOn(Data->Iopb->Parameters.Create.Options, FILE_DIRECTORY_FILE)) 
     {
@@ -597,7 +601,7 @@ EncryptPreCreate(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptIsTargetProcess(Data, TargetName)) 
+    if (!EptIsTargetProcess(Data)) 
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -698,7 +702,7 @@ EncryptPreRead(
 
     FltReleaseContext(StreamContext);
 
-    if (!EptIsTargetProcess(Data, "notepad.exe"))
+    if (!EptIsTargetProcess(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -789,7 +793,7 @@ EncryptPreWrite(
 
     FltReleaseContext(StreamContext);
 
-    if (!EptIsTargetProcess(Data, "notepad.exe"))
+    if (!EptIsTargetProcess(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -909,7 +913,7 @@ EncryptPostQueryInformation(
 
     FltReleaseContext(StreamContext);
 
-    if (!EptIsTargetProcess(Data, "notepad.exe"))
+    if (!EptIsTargetProcess(Data))
     {
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
@@ -1030,7 +1034,7 @@ EncryptPreSetInformation(
 
     FltReleaseContext(StreamContext);
 
-    if (!EptIsTargetProcess(Data, "notepad.exe"))
+    if (!EptIsTargetProcess(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -1158,7 +1162,7 @@ EncryptPreCleanUp(
 
     FltReleaseContext(StreamContext);
 
-    if (!EptIsTargetProcess(Data, "notepad.exe"))
+    if (!EptIsTargetProcess(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }

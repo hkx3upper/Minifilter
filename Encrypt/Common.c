@@ -1,8 +1,9 @@
 #pragma warning(disable:4996)
 
 #include "common.h"
+#include "commport.h"
+
 ULONG BreakPointFlag = 1;
-DECLARE_CONST_UNICODE_STRING(TXT, L"txt");
 
 #define FILE_CLEAR_CACHE_USE_ORIGINAL_LOCK  1
 
@@ -101,7 +102,7 @@ BOOLEAN EptGetProcessName(PFLT_CALLBACK_DATA Data, PUNICODE_STRING ProcessName) 
 
 
 //判断是否为加密进程
-BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data, CHAR* TargetName) {
+BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 
 	PAGED_CODE();
 
@@ -150,7 +151,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data, CHAR* TargetName) {
 
 
 	//大写便于比较
-	RtlMoveMemory(Temp, TargetName, strlen(TargetName));
+	RtlMoveMemory(Temp, ProcessRules.TargetProcessName, strlen(ProcessRules.TargetProcessName));
 
 	RtlMoveMemory(AnisProcessName.Buffer, _strupr(AnisProcessName.Buffer), strlen(AnisProcessName.Buffer));
 	RtlMoveMemory(Temp, _strupr(Temp), strlen(Temp));
@@ -174,6 +175,13 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 	NTSTATUS Status;
 	PFLT_FILE_NAME_INFORMATION FileNameInfo;
 
+    char* lpExtension = ProcessRules.TargetExtension;
+    int count = 0;
+    char TempExtension[10];
+    ANSI_STRING AnsiTempExtension;
+    UNICODE_STRING Extension;
+
+
 	//判断文件后缀，避免进程本身需要的操作被拦截
 	Status = FltGetFileNameInformation(Data, FLT_FILE_NAME_NORMALIZED | FLT_FILE_NAME_QUERY_ALWAYS_ALLOW_CACHE_LOOKUP, &FileNameInfo);
 
@@ -185,14 +193,44 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 
 	FltParseFileNameInformation(FileNameInfo);
 
-	if (!RtlEqualUnicodeString(&FileNameInfo->Extension, &TXT, TRUE)) {
 
-		FltReleaseFileNameInformation(FileNameInfo);
-		return FALSE;
-	}
+    for (int i = 0; i < ProcessRules.count; i++)
+    {
+        memset(TempExtension, 0, sizeof(TempExtension));
+        count = 0;
+
+        while (strncmp(lpExtension, ",", 1))
+        {
+            TempExtension[count++] = *lpExtension;
+            //DbgPrint("lpExtension = %s.\n", lpExtension);
+            lpExtension++;
+        }
+
+        //DbgPrint("TempExtension = %s.\n", TempExtension);
+
+        RtlInitAnsiString(&AnsiTempExtension, TempExtension);
+        AnsiTempExtension.MaximumLength = sizeof(TempExtension);
+
+        if (NT_SUCCESS(RtlAnsiStringToUnicodeString(&Extension, &AnsiTempExtension, TRUE)))
+        {
+            if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
+            {
+                FltReleaseFileNameInformation(FileNameInfo);
+                RtlFreeUnicodeString(&Extension);
+                //DbgPrint("EptIsTargetExtension hit.\n");
+                return TRUE;
+            }
+
+            RtlFreeUnicodeString(&Extension);
+        }
+
+        //跳过逗号
+        lpExtension++;
+    }
+    
 
 	FltReleaseFileNameInformation(FileNameInfo);
-	return TRUE;
+	return FALSE;
 }
 
 

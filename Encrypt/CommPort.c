@@ -3,6 +3,7 @@
 
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
+EPT_PROCESS_RULES ProcessRules;
 
 NTSTATUS ConnectNotifyCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVOID ConnectionContext, ULONG SizeOfContext, PVOID* ConnectionPortCookie)
 {
@@ -37,6 +38,7 @@ VOID DisconnectNotifyCallback(PVOID ConnectionCookie)
 NTSTATUS MessageNotifyCallback(PVOID PortCookie, PVOID InputBuffer, ULONG InputBufferLength, PVOID OutputBuffer, ULONG OutputBufferLength, PULONG ReturnOutputBufferLength)
 {
 	UNREFERENCED_PARAMETER(PortCookie);
+	UNREFERENCED_PARAMETER(InputBufferLength);
 	UNREFERENCED_PARAMETER(OutputBuffer);
 	UNREFERENCED_PARAMETER(OutputBufferLength);
 	UNREFERENCED_PARAMETER(ReturnOutputBufferLength);
@@ -44,6 +46,7 @@ NTSTATUS MessageNotifyCallback(PVOID PortCookie, PVOID InputBuffer, ULONG InputB
 	PAGED_CODE();
 
 	PUCHAR Buffer;
+	EPT_MESSAGE_HEADER MessageHeader;
 
 	if (InputBuffer != NULL)
 	{
@@ -58,7 +61,23 @@ NTSTATUS MessageNotifyCallback(PVOID PortCookie, PVOID InputBuffer, ULONG InputB
 			return GetExceptionCode();
 		}
 
-		DbgPrint("Receive buffer from user land length = %d content = %s\n", InputBufferLength, Buffer);
+		RtlMoveMemory(&MessageHeader, Buffer, sizeof(EPT_MESSAGE_HEADER));
+
+		switch (MessageHeader.Command)
+		{
+		case 1:
+		{
+			DbgPrint("%s", (Buffer + sizeof(EPT_MESSAGE_HEADER)));
+			break;
+		}
+		case 2:
+		{
+			RtlMoveMemory(&ProcessRules, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES));
+			break;
+		}
+		}
+
+		
 
 	}
 
