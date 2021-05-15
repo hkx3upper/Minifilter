@@ -140,8 +140,8 @@ FltSetCallbackDataDirty(Data);
 
 //第三步，这里我们把以上两部分组合在一起，实现一个最小化的基本功能的加密解密系统
 
-//这里需要添加的是IRP_MJ_QUERY_INFORMATION
-//因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE，    
+//这里需要添加的是IRP_MJ_QUERY_INFORMATION  
+//因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE,  
 //否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +238,8 @@ for (int i = 0; i < ProcessRules.count; i++)
 ## AES-128 ECB
 
 //按照微软的sample修改，https://docs.microsoft.com/en-us/windows/win32/seccng/encrypting-data-with-cng  
-//在DriverEntry中初始化加密的Key，存入全局变量AES_INIT_VARIABLES AesInitVar中，在EncryptUnload中CleanUp相关的Key和分配的内存  
+//在DriverEntry中初始化加密的Key，存入全局变量AES_INIT_VARIABLES AesInitVar中，  
+//在EncryptUnload中CleanUp相关的Key和分配的内存  
 ```
 typedef struct AES_INIT_VARIABLES
 {
