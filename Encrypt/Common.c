@@ -159,6 +159,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 	if (strcmp(p, Temp) == 0) {
 
 		RtlFreeAnsiString(&AnisProcessName);
+        //DbgPrint("EptIsTargetProcess hit.\n");
 		return TRUE;
 	}
 
@@ -244,6 +245,17 @@ VOID EptReadWriteCallbackRoutine(
 }
 
 
+ULONG EptGetFileSize(PCFLT_RELATED_OBJECTS FltObjects)
+{
+    FILE_STANDARD_INFORMATION StandardInfo;
+    ULONG LengthReturned;
+
+    FltQueryInformationFile(FltObjects->Instance, FltObjects->FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
+
+    return (ULONG)StandardInfo.EndOfFile.QuadPart;
+}
+
+
 //判断是否为带有加密标记的文件
 BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
@@ -256,6 +268,7 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 	PVOID ReadBuffer;
 	LARGE_INTEGER ByteOffset = { 0 };
 	ULONG BytesRead, Length;
+
 
 	//根据FltReadFile对于Length的要求，Length必须是扇区大小的整数倍
 	Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
@@ -333,7 +346,7 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
 	NTSTATUS Status;
 	FILE_STANDARD_INFORMATION StandardInfo;
-	FILE_END_OF_FILE_INFORMATION FileEOFInfo;
+	//FILE_END_OF_FILE_INFORMATION FileEOFInfo;
 
 	PFLT_VOLUME Volume;
 	FLT_VOLUME_PROPERTIES VolumeProps;
@@ -343,8 +356,6 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 	PVOID Buffer;
 	LARGE_INTEGER ByteOffset;
 	ULONG Length, BytesWritten, LengthReturned;
-
-	FILE_POSITION_INFORMATION FilePositionInfo = { 0 };
 
 	//查询文件大小
 	Status = FltQueryInformationFile(FltObjects->Instance, FltObjects->FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
@@ -360,9 +371,6 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 	//分配文件头FILE_FLAG_SIZE大小，写入文件flag
 	if (StandardInfo.EndOfFile.QuadPart == 0
 		&& ((*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))) {
-
-		FileEOFInfo.EndOfFile.QuadPart = FILE_FLAG_SIZE;
-		Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FileEOFInfo, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
 
 		if (!NT_SUCCESS(Status)) {
 
@@ -419,12 +427,6 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 		}
 
         ExFreePool(Buffer);
-
-        EptFileCacheClear(FltObjects->FileObject);
-
-		//修改文件指针偏移
-		FilePositionInfo.CurrentByteOffset.QuadPart = 0;
-		Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FilePositionInfo, sizeof(FILE_POSITION_INFORMATION), FilePositionInformation);
 
 		return TRUE;
 	}

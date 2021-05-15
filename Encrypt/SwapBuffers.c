@@ -2,6 +2,7 @@
 #include "swapbuffers.h"
 #include "common.h"
 #include "context.h"
+#include "cryptography.h"
 
 
 BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID* CompletionContext)
@@ -18,6 +19,25 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 
     try
     {
+        //获取原来的WriteBuffer地址
+        if ((*Data)->Iopb->Parameters.Write.MdlAddress != NULL) {
+
+            OrigBuffer = MmGetSystemAddressForMdlSafe((*Data)->Iopb->Parameters.Write.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+            if (OrigBuffer == NULL) {
+                DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
+                Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+                leave;
+            }
+        }
+        else {
+
+            OrigBuffer = (*Data)->Iopb->Parameters.Write.WriteBuffer;
+        }
+
+        //获得加密后数据的大小
+        EptAesEncrypt(FltObjects, OrigBuffer, &WriteLength, TRUE);
+        DbgPrint("WriteLength = %d.\n", WriteLength);
+
         //获得WriteBuffer真正的大小，防止内存越界
         Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
 
@@ -46,14 +66,14 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         RtlZeroMemory(SwapWriteContext, sizeof(SWAP_BUFFER_CONTEXT));
 
         //只需要为noncached IO分配内存，但这里简化
-        NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, WriteLength + 1, SWAP_WRITE_BUFFER_TAG);
+        NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, WriteLength, SWAP_WRITE_BUFFER_TAG);
         if (NewBuffer == NULL) {
             DbgPrint("NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
             Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
             leave;
         }
 
-        RtlZeroMemory(NewBuffer, WriteLength + 1);
+        RtlZeroMemory(NewBuffer, WriteLength);
 
 
         //只需要为IRP操作建立MDL，不需要为FASTIO操作
@@ -69,21 +89,6 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
             MmBuildMdlForNonPagedPool(NewMdl);
         }
 
-
-        //获取原来的WriteBuffer地址
-        if ((*Data)->Iopb->Parameters.Write.MdlAddress != NULL) {
-
-            OrigBuffer = MmGetSystemAddressForMdlSafe((*Data)->Iopb->Parameters.Write.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
-            if (OrigBuffer == NULL) {
-                DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
-                Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-                leave;
-            }
-        }
-        else {
-
-            OrigBuffer = (*Data)->Iopb->Parameters.Write.WriteBuffer;
-        }
     }
     except(EXCEPTION_EXECUTE_HANDLER)
     {
@@ -119,15 +124,15 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 
     DbgPrint("PreWrite NewBuffer content = %s.\n", NewBuffer);
 
-    for (ULONG i = 0; i < WriteLength; i++)
-    {
-        NewBuffer[i] ^= 0x77;
-    }
+    //for (ULONG i = 0; i < WriteLength; i++)
+    //{
+    //    NewBuffer[i] ^= 0x77;
+    //}
+    //这里WriteLength作为NewBuffer的大小传入，作为LengthReturned传出
+    EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE);
+    (*Data)->Iopb->Parameters.Write.Length = WriteLength;
 
-    //DbgPrint输出需要加上EOF
-    RtlCopyMemory(&NewBuffer[WriteLength], "\0", 1);
     DbgPrint("PreWrite Encrypted content = %s.\n", NewBuffer);
-
 
     //cleanup
     if (Status != FLT_PREOP_SUCCESS_WITH_CALLBACK) {
@@ -161,9 +166,7 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
     PMDL NewMdl = NULL;
     ULONG ReadLength = (*Data)->Iopb->Parameters.Read.Length;
 
-
     PAGED_CODE();
-
 
     Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
 
@@ -259,12 +262,14 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     NewBuffer = SwapReadContext->NewBuffer;
     ReadLength = (ULONG)(*Data)->IoStatus.Information;
 
-    DbgPrint("PostRead Encrypted content = %s.\n", NewBuffer);
+    DbgPrint("PostRead Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, (*Data)->Iopb->Parameters.Read.Length);
 
-    for (ULONG i = 0; i < ReadLength; i++)
-    {
-        NewBuffer[i] ^= 0x77;
-    }
+    //for (ULONG i = 0; i < ReadLength; i++)
+    //{
+    //    NewBuffer[i] ^= 0x77;
+    //}
+
+    EptAesDecrypt(NewBuffer, ReadLength);
 
     DbgPrint("PostRead Decrypted content = %s.\n", NewBuffer);
 

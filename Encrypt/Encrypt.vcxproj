@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Cryptography.c" />
     <ClCompile Include="CommPort.c" />
     <ClCompile Include="SwapBuffers.c" />
     <ClCompile Include="Common.c" />
@@ -73,6 +74,7 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <Driver_SpectreMitigation>Spectre</Driver_SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -81,6 +83,7 @@
     <ConfigurationType>Driver</ConfigurationType>
     <DriverType>WDM</DriverType>
     <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <Driver_SpectreMitigation>Spectre</Driver_SpectreMitigation>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
@@ -126,9 +129,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <IncludePath>D:\Windows Kits\10\Cryptographic Provider Development Kit\Include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Windows Kits\10\Cryptographic Provider Development Kit\Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <IncludePath>D:\Windows Kits\10\Cryptographic Provider Development Kit\Include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Windows Kits\10\Cryptographic Provider Development Kit\Lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -154,7 +161,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
-      <AdditionalDependencies>fltmgr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fltmgr.lib;ksecdd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ClCompile>
       <SDLCheck>true</SDLCheck>
@@ -162,8 +170,12 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
-      <AdditionalDependencies>fltmgr.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>fltmgr.lib;ksecdd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
+    <ClCompile />
+    <ClCompile />
+    <ClCompile />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <Link>
@@ -189,6 +201,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cryptography.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />

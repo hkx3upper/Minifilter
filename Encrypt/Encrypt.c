@@ -19,6 +19,7 @@ Environment:
 #include "context.h"
 #include "swapbuffers.h"
 #include "commport.h"
+#include "cryptography.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -128,21 +129,6 @@ EncryptPostWrite (
     );
 
 FLT_PREOP_CALLBACK_STATUS
-EncryptPreCleanUp(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostCleanUp(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
-
-FLT_PREOP_CALLBACK_STATUS
 EncryptPreQueryInformation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
@@ -158,14 +144,14 @@ EncryptPostQueryInformation(
 );
 
 FLT_PREOP_CALLBACK_STATUS
-EncryptPreSetInformation(
+EncryptPreCleanUp(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
 );
 
 FLT_POSTOP_CALLBACK_STATUS
-EncryptPostSetInformation(
+EncryptPostCleanUp(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
@@ -235,12 +221,6 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
       0,
       EncryptPreQueryInformation,
       EncryptPostQueryInformation
-    },
-
-    { IRP_MJ_SET_INFORMATION,
-      0,
-      EncryptPreSetInformation,
-      EncryptPostSetInformation
     },
         
     { IRP_MJ_CLEANUP,
@@ -495,6 +475,8 @@ Return Value:
     RtlInitUnicodeString(&FuncName, L"ZwQueryInformationProcess");
     pEptQueryInformationProcess = (EptQueryInformationProcess)(ULONG_PTR)MmGetSystemRoutineAddress(&FuncName);
 
+
+    RtlZeroMemory(&ProcessRules, sizeof(EPT_PROCESS_RULES));
     RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
     RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
     ProcessRules.count = 1;
@@ -524,6 +506,14 @@ Return Value:
         if (!EptInitCommPort())
         {
             FltUnregisterFilter(gFilterHandle);
+        }
+
+        AesInitVar.Flag = EptAesInithKey();
+
+        if (!AesInitVar.Flag)
+        {
+            FltUnregisterFilter(gFilterHandle);
+            EptCloseCommPort();
         }
 
     }
@@ -567,6 +557,8 @@ Return Value:
     {
         FltUnregisterFilter(gFilterHandle);
     }
+
+    VOID EptAesCleanUp();
 
     return STATUS_SUCCESS;
 }
@@ -676,6 +668,11 @@ EncryptPreRead(
     PEPT_STREAM_CONTEXT StreamContext;
     BOOLEAN AlreadyDefined;
 
+    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+    {
+        return FLT_PREOP_DISALLOW_FASTIO;
+    }
+
     if (Data->Iopb->Parameters.Read.Length == 0)
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -715,14 +712,9 @@ EncryptPreRead(
 
     DbgPrint("EncryptPreRead hit.\n");
 
-    Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;
-
-
-
     PreReadSwapBuffers(&Data, FltObjects, CompletionContext);
 
-
-
+    Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;
     FltSetCallbackDataDirty(Data);
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -767,6 +759,11 @@ EncryptPreWrite(
     PEPT_STREAM_CONTEXT StreamContext;
     BOOLEAN AlreadyDefined;
 
+    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+    {
+        return FLT_PREOP_DISALLOW_FASTIO;
+    }
+
     if (Data->Iopb->Parameters.Write.Length == 0)
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -805,12 +802,7 @@ EncryptPreWrite(
 
     DbgPrint("EncryptPreWrite hit.\n");
 
-    Data->Iopb->Parameters.Write.ByteOffset.QuadPart += FILE_FLAG_SIZE;
-
-
-   
     PreWriteSwapBuffers(&Data, FltObjects, CompletionContext);
-
 
     FltSetCallbackDataDirty(Data);
 
@@ -832,8 +824,6 @@ EncryptPostWrite (
     UNREFERENCED_PARAMETER(Flags);
 
     DbgPrint("EncryptPostWrite hit.\n");
-
-
 
     PSWAP_BUFFER_CONTEXT SwapWriteContext = CompletionContext;
 
@@ -866,6 +856,11 @@ EncryptPreQueryInformation(
     UNREFERENCED_PARAMETER(CompletionContext);
 
     PEPT_STREAM_CONTEXT StreamContext;
+
+    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+    {
+        return FLT_PREOP_DISALLOW_FASTIO;
+    }
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
 
@@ -918,7 +913,7 @@ EncryptPostQueryInformation(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    //DbgPrint("EncryptPostQueryInformation hit.\n");
+    //DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
@@ -926,6 +921,7 @@ EncryptPostQueryInformation(
 
     case FileStandardInformation:
     {
+        //DbgPrint("1.\n");
         PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
         Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
         Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
@@ -933,6 +929,7 @@ EncryptPostQueryInformation(
     }
     case FileAllInformation:
     {
+        //DbgPrint("2.\n");
         PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)InfoBuffer;
         if (Data->IoStatus.Information >=
             sizeof(FILE_BASIC_INFORMATION) +
@@ -948,42 +945,66 @@ EncryptPostQueryInformation(
                 sizeof(FILE_ACCESS_INFORMATION) +
                 sizeof(FILE_POSITION_INFORMATION))
             {
-               
+
                 if (Info->PositionInformation.CurrentByteOffset.QuadPart > FILE_FLAG_SIZE)
                 {
                     Info->PositionInformation.CurrentByteOffset.QuadPart -= FILE_FLAG_SIZE;
-                    //DbgPrint("EncryptPostQueryInformation FileAllInformation CurrentByteOffset hit.\n");
+                    DbgPrint("CurrentByteOffset = %d.\n", Info->PositionInformation.CurrentByteOffset.QuadPart);
                 }
-                  
+
             }
         }
         break;
     }
     case FileAllocationInformation:
     {
+        //DbgPrint("3.\n");
         PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
         Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
+        //DbgPrint("AllocationSize = %d.\n", Info->AllocationSize.QuadPart);
+        break;
+    }
+    case FileValidDataLengthInformation:
+    {
+        //DbgPrint("4.\n");
+        PFILE_VALID_DATA_LENGTH_INFORMATION Info = (PFILE_VALID_DATA_LENGTH_INFORMATION)InfoBuffer;
+        Info->ValidDataLength.QuadPart -= FILE_FLAG_SIZE;
         break;
     }
     case FileEndOfFileInformation:
     {
+        //DbgPrint("5.\n");
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        //DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FilePositionInformation:
     {
-        
+        //DbgPrint("6.\n");
         PFILE_POSITION_INFORMATION Info = (PFILE_POSITION_INFORMATION)InfoBuffer;
-        if (Info->CurrentByteOffset.QuadPart > FILE_FLAG_SIZE) 
+        if (Info->CurrentByteOffset.QuadPart > FILE_FLAG_SIZE)
         {
             Info->CurrentByteOffset.QuadPart -= FILE_FLAG_SIZE;
             //DbgPrint("EncryptPostQueryInformation FilePositionInformation CurrentByteOffset hit.\n");
         }
-           
+
         break;
     }
-
+    case FileStreamInformation:
+    {
+        //DbgPrint("7.\n");
+        PFILE_STREAM_INFORMATION Info = (PFILE_STREAM_INFORMATION)InfoBuffer;
+        Info->StreamAllocationSize.QuadPart -= FILE_FLAG_SIZE;
+        Info->StreamSize.QuadPart -= FILE_FLAG_SIZE;
+        break;
+    }
+    case FileNetworkOpenInformation:
+    {
+        PFILE_NETWORK_OPEN_INFORMATION  Info = (PFILE_NETWORK_OPEN_INFORMATION)InfoBuffer;
+        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;;
+    }
     default:
     {
         break;
@@ -995,134 +1016,6 @@ EncryptPostQueryInformation(
     //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
-}
-
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreSetInformation(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
-{
-
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
-
-    PAGED_CODE();
-
-    PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
-
-    if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
-
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
-
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
-
-        FltReleaseContext(StreamContext);
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
-
-    if (!StreamContext->FlagExist) {
-
-        FltReleaseContext(StreamContext);
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
-
-    FltReleaseContext(StreamContext);
-
-    if (!EptIsTargetProcess(Data))
-    {
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
-
-    //DbgPrint("EncryptPreSetInformation hit.\n");
-
-    PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
-
-    switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
-    
-    case FileStandardInformation:
-    {
-        PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
-        Info->AllocationSize.QuadPart += FILE_FLAG_SIZE;
-        Info->EndOfFile.QuadPart += FILE_FLAG_SIZE;
-        break;
-    }
-    case FileAllInformation:
-    {
-        PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)InfoBuffer;
-        if (Data->IoStatus.Information >=
-            sizeof(FILE_BASIC_INFORMATION) +
-            sizeof(FILE_STANDARD_INFORMATION))
-        {
-            Info->StandardInformation.AllocationSize.QuadPart += FILE_FLAG_SIZE;
-            Info->StandardInformation.EndOfFile.QuadPart += FILE_FLAG_SIZE;
-
-            if (Data->IoStatus.Information >=
-                sizeof(FILE_BASIC_INFORMATION) +
-                sizeof(FILE_STANDARD_INFORMATION) +
-                sizeof(FILE_EA_INFORMATION) +
-                sizeof(FILE_ACCESS_INFORMATION) +
-                sizeof(FILE_POSITION_INFORMATION))
-            {
-                Info->PositionInformation.CurrentByteOffset.QuadPart += FILE_FLAG_SIZE;
-
-                //DbgPrint("EncryptPreSetInformation FileAllInformation CurrentByteOffset hit.\n");
-            }
-        }
-        break;
-    }
-    case FileAllocationInformation:
-    {
-        PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
-        Info->AllocationSize.QuadPart += FILE_FLAG_SIZE;
-        break;
-    }
-    case FileEndOfFileInformation:
-    {
-        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
-        Info->EndOfFile.QuadPart += FILE_FLAG_SIZE;
-        break;
-    }
-    case FilePositionInformation:
-    {
-        PFILE_POSITION_INFORMATION Info = (PFILE_POSITION_INFORMATION)InfoBuffer;
-        Info->CurrentByteOffset.QuadPart += FILE_FLAG_SIZE;
-
-        //DbgPrint("EncryptPreSetInformation FilePositionInformation CurrentByteOffset hit.\n");
-
-        break;
-    }
-    }
-
-    FltSetCallbackDataDirty(Data);
-
-    //DbgPrint("\n");
-
-    return FLT_PREOP_SUCCESS_WITH_CALLBACK;
-}
-
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostSetInformation(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-)
-{
-
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
-    UNREFERENCED_PARAMETER(Flags);
-
-    return FLT_POSTOP_FINISHED_PROCESSING;
-
 }
 
 
@@ -1167,10 +1060,9 @@ EncryptPreCleanUp(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    //DbgPrint("EncryptPreCleanUp hit.\n");
+    DbgPrint("EncryptPreCleanUp hit.\n");
     EptFileCacheClear(FltObjects->FileObject);
-
-
+    
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 
 }

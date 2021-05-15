@@ -39,6 +39,9 @@
     <ClCompile Include="CommPort.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Cryptography.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="global.h">
@@ -54,6 +57,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="commport.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cryptography.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
