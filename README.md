@@ -66,7 +66,9 @@ if (!EptIsTargetExtension(Data))
 ```
 //然后注意，PostRead中，是在RtlCopyMemory之前解密；PreWrite中，是在RtlCopyMemory之后加密
 
-//但是PreWrite中，iopb->Parameters.Write.Length的大小是0x1000，和真正数据长度是不符的，所以在加密后，如果想要DbgPrint输出一下加密后的密文，需要给字符串加上EOF
+//但是PreWrite中，iopb->Parameters.Write.Length的大小是0x1000，和真正数据长度是不符的，
+
+//可以使用FltQueryInformationFile查询EOF获得文件的真正大小
 
 //这样基本上就可以了。
 
@@ -76,18 +78,12 @@ if (!EptIsTargetExtension(Data))
 
 ## 关于写入，识别，对记事本隐藏加密文件头，这部分完全按照《Windows内核安全与驱动开发》是不合适的
 
-//尤其是以下标记（重要）的步骤是需要补充的，另外不建议直接在上一步的加密解密Sample中添加修改，  
-//建议另外新建项目，单纯实现写入，识别，对记事本隐藏加密文件头，最后组合在一起
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //写入加密文件头"ENCRYPTION"大小PAGE_SIZE
 
-//分配大小
-```
-FileEOFInfo.EndOfFile.QuadPart = FILE_FLAG_SIZE;
-Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FileEOFInfo, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
-```
+//这里不需要用FltSetInformationFile分配EOF大小
+
 //初始化事件
 ```
 KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
@@ -101,11 +97,6 @@ Status = FltWriteFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset,
 //等待FltWriteFile完成
 ```
 KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
-```
-//修改文件指针偏移（重要）
-```
-FilePositionInfo.CurrentByteOffset.QuadPart = 0;
-Status = FltSetInformationFile(FltObjects->Instance, FltObjects->FileObject, &FilePositionInfo, sizeof(FILE_POSITION_INFORMATION), FilePositionInformation);
 ```
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -125,17 +116,22 @@ Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, 
 
 //忽略以下操作（重要）
 ```
+if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+{
+    return FLT_PREOP_DISALLOW_FASTIO;
+}
+
 if (Data->Iopb->Parameters.Read.Length == 0)
-    {
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
+{
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+}
 
 if (!FlagOn(Data->Iopb->IrpFlags, (IRP_PAGING_IO | IRP_SYNCHRONOUS_PAGING_IO | IRP_NOCACHE)))
-    {
-        return FLT_PREOP_SUCCESS_NO_CALLBACK;
-    }
+{
+    return FLT_PREOP_SUCCESS_NO_CALLBACK;
+}
 ```
-//设置偏移加FILE_FLAG_SIZE（重要）
+//设置偏移加FILE_FLAG_SIZE，Write不需要修改偏移（重要）
 ```
 Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;
 FltSetCallbackDataDirty(Data);
@@ -144,9 +140,9 @@ FltSetCallbackDataDirty(Data);
 
 //第三步，这里我们把以上两部分组合在一起，实现一个最小化的基本功能的加密解密系统
 
-//这里需要添加的是IRP_MJ_QUERY_INFORMATION和IRP_MJ_SET_INFORMATION  
-//因为在PreRead和PreWrite中，对Data->Iopb->Parameters.Read.ByteOffset.QuadPart += FILE_FLAG_SIZE;做了调整  
-//所以需要在PostQueryInformation和PreSetInformation中对相关的选项进行调整，这里不再赘述
+//这里需要添加的是IRP_MJ_QUERY_INFORMATION
+//因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE，    
+//否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +166,7 @@ typedef struct EPT_MESSAGE_HEADER
 
 ## 从客户端传入信任进程和扩展名匹配规则到驱动
 
-//使用结构体  
+//使用结构体    
 //扩展名用 , （英文）分隔，用 , （英文）结束 例如：txt,docx，并在count中记录数量
 ```
 typedef struct EPT_PROCESS_RULES
@@ -233,4 +229,71 @@ for (int i = 0; i < ProcessRules.count; i++)
         //跳过逗号
         lpExtension++;
     }
+```
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+## AES-128 ECB
+
+//按照微软的sample修改，https://docs.microsoft.com/en-us/windows/win32/seccng/encrypting-data-with-cng  
+//在DriverEntry中初始化加密的Key，存入全局变量AES_INIT_VARIABLES AesInitVar中，在EncryptUnload中CleanUp相关的Key和分配的内存  
+```
+typedef struct AES_INIT_VARIABLES
+{
+    BCRYPT_ALG_HANDLE hAesAlg;
+    BCRYPT_KEY_HANDLE hKey;
+    PUCHAR pbKeyObject;
+    BOOLEAN Flag;
+}AES_INIT_VARIABLES, * PAES_INIT_VARIABLES;
+```
+//但这里我们用的是ECB，所以BCryptEncrypt，BCryptDecrypt函数不需要pbIV，也就是不需要初始块  
+//另外将参数设置为BCRYPT_BLOCK_PADDING，这样也不用手动对齐数据，函数会自动填补到AES_BLOCK_SIZE  
+//但是还是需要做一个对齐，以便分配在加解密函数中使用的TempBuffer的大小  
+```
+ULONG OrigLength = EptGetFileSize(FltObjects) - FILE_FLAG_SIZE;
+ULONG Length = OrigLength;
+if ((Length % AES_BLOCK_SIZE) != 0)
+{
+    Length = (Length / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+}
+```
+//因为每次Data->Iopb->Parameters.Write.Length和Data->Iopb->Parameters.Read.Length都是PAGE_SIZE的整数倍  
+//又因为加密之后的数据比原始数据大，所以在PostRead中不需要调用BCryptDecrypt获取解密后数据大小  
+//但是PreWrite需要调用BCryptEncrypt返回加密后数据的大小，根据这个大小分配之后替换的内存，  
+//之后再调用BCryptEncrypt加密数据  
+```
+if (ReturnLengthFlag)
+{
+
+//BCRYPT_BLOCK_PADDING
+//Allows the encryption algorithm to pad the data to the next block size. 
+//If this flag is not specified, the size of the plaintext specified in the cbInput parameter 
+//must be a multiple of the algorithm's block size.
+
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, BCRYPT_BLOCK_PADDING);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EptAesEncrypt BCryptEncrypt failed.\n");
+        ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+        return FALSE;
+    }
+
+    DbgPrint("PreWrite AesEncrypt Length = %d LengthReturned = %d.\n", Length, *LengthReturned);
+
+    ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+    return TRUE;
+}
+
+
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, BCRYPT_BLOCK_PADDING);
+
+if (!NT_SUCCESS(Status))
+{
+    DbgPrint("EptAesEncrypt BCryptEncrypt failed Status = %X.\n", Status);
+    ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+    return FALSE;
+}
 ```
