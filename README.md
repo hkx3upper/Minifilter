@@ -239,7 +239,7 @@ for (int i = 0; i < ProcessRules.count; i++)
 
 //需要在微软官网下载cpdksetup.exe，项目->属性的VC++目录的包含目录，库目录设置相应的位置  
 //链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
-//输入->附加依赖项一定要设置ksecdd.lib  
+//输入->附加依赖项一定要设置为ksecdd.lib  
 
 //按照微软的sample修改，https://docs.microsoft.com/en-us/windows/win32/seccng/encrypting-data-with-cng  
 //在DriverEntry中初始化加密的Key，存入全局变量AES_INIT_VARIABLES AesInitVar中，  
