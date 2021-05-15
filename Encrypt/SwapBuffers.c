@@ -5,6 +5,9 @@
 #include "cryptography.h"
 
 
+FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags);
+
+
 BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID* CompletionContext)
 {
 
@@ -36,7 +39,7 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 
         //获得加密后数据的大小
         EptAesEncrypt(FltObjects, OrigBuffer, &WriteLength, TRUE);
-        DbgPrint("WriteLength = %d.\n", WriteLength);
+        //DbgPrint("WriteLength = %d.\n", WriteLength);
 
         //获得WriteBuffer真正的大小，防止内存越界
         Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
@@ -234,10 +237,12 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 }
 
 
-BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext)
+BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags)
 {
 
-    PVOID OrigBuffer;
+    UNREFERENCED_PARAMETER(Flags);
+
+    PVOID OrigBuffer = NULL;
     PUCHAR NewBuffer;
     ULONG ReadLength;
     PSWAP_BUFFER_CONTEXT SwapReadContext = CompletionContext;
@@ -247,14 +252,37 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         OrigBuffer = MmGetSystemAddressForMdlSafe((*Data)->Iopb->Parameters.Read.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
         if (OrigBuffer == NULL)
         {
-            OrigBuffer = (*Data)->Iopb->Parameters.Read.ReadBuffer;
+            (*Data)->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            (*Data)->IoStatus.Information = 0;
             DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
         }
     }
-    //暂时不处理其他选项
-    else
+    else if(FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_SYSTEM_BUFFER) || FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
         OrigBuffer = (*Data)->Iopb->Parameters.Read.ReadBuffer;
+    }
+    else
+    {
+        //  They don't have a MDL and this is not a system buffer
+            //  or a fastio so this is probably some arbitrary user
+            //  buffer.  We can not do the processing at DPC level so
+            //  try and get to a safe IRQL so we can do the processing.
+            //
+        FLT_POSTOP_CALLBACK_STATUS retValue;
+        if (FltDoCompletionProcessingWhenSafe(*Data, FltObjects, CompletionContext, Flags, PostReadSwapBuffersWhenSafe, &retValue)) {
+
+            //
+            //  This operation has been moved to a safe IRQL, the called
+            //  routine will do (or has done) the freeing so don't do it
+            //  in our routine.
+        }
+        else 
+        {
+            (*Data)->IoStatus.Status = STATUS_UNSUCCESSFUL;
+            (*Data)->IoStatus.Information = 0;
+        }
+
+
     }
 
 
@@ -276,7 +304,7 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 
     try
     {
-        if (SwapReadContext->NewBuffer)
+        if (SwapReadContext->NewBuffer && OrigBuffer)
             RtlCopyMemory(OrigBuffer, SwapReadContext->NewBuffer, (*Data)->IoStatus.Information);
     }
     except(EXCEPTION_EXECUTE_HANDLER)
@@ -294,4 +322,70 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     }
 
     return TRUE;
+}
+
+
+FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags)
+{
+
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
+
+    NTSTATUS Status;
+    PVOID OrigBuffer;
+    PUCHAR NewBuffer;
+    ULONG ReadLength;
+    PSWAP_BUFFER_CONTEXT SwapReadContext = CompletionContext;
+
+    DbgPrint("PostReadSwapBuffersWhenSafe hit.\n");
+
+    Status = FltLockUserBuffer(Data);
+
+    if (!NT_SUCCESS(Status))
+    {
+        Data->IoStatus.Status = Status;
+        Data->IoStatus.Information = 0;
+    }
+    else
+    {
+        OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+        if (OrigBuffer == NULL)
+        {
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+            DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
+        }
+
+        //解密函数
+        NewBuffer = SwapReadContext->NewBuffer;
+        ReadLength = (ULONG)Data->IoStatus.Information;
+
+        DbgPrint("PostRead Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
+
+        //for (ULONG i = 0; i < ReadLength; i++)
+        //{
+        //    NewBuffer[i] ^= 0x77;
+        //}
+
+        EptAesDecrypt(NewBuffer, ReadLength);
+
+        DbgPrint("PostRead Decrypted content = %s.\n", NewBuffer);
+
+        if (SwapReadContext->NewBuffer)
+            RtlCopyMemory(OrigBuffer, SwapReadContext->NewBuffer, Data->IoStatus.Information);
+
+    }
+
+    if (SwapReadContext->NewBuffer != NULL)
+        FltFreePoolAlignedWithTag(FltObjects->Instance, SwapReadContext->NewBuffer, SWAP_READ_BUFFER_TAG);
+
+
+    if (SwapReadContext != NULL) {
+        ExFreePool(SwapReadContext);
+    }
+
+    DbgPrint("\n");
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+
 }

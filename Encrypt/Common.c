@@ -241,7 +241,7 @@ VOID EptReadWriteCallbackRoutine(
 )
 {
     UNREFERENCED_PARAMETER(CallbackData);
-    KeSetEvent((PRKEVENT)Context, 0, FALSE);
+    KeSetEvent((PRKEVENT)Context, IO_NO_INCREMENT, FALSE);
 }
 
 
@@ -267,7 +267,7 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	PVOID ReadBuffer;
 	LARGE_INTEGER ByteOffset = { 0 };
-	ULONG BytesRead, Length;
+	ULONG Length;
 
 
 	//根据FltReadFile对于Length的要求，Length必须是扇区大小的整数倍
@@ -293,7 +293,6 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 	Length = FILE_FLAG_SIZE;
 	Length = ROUND_TO_SIZE(Length, VolumeProps.SectorSize);
 
-
 	//为FltReadFile分配内存，之后在Buffer中查找Flag
 	ReadBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, Length, 'itRB');
 
@@ -306,19 +305,20 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	RtlZeroMemory(ReadBuffer, Length);
 
-
     KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 
-	//将文件读入缓冲区，关闭文件时会发生读取不全，但不影响驱动功能，还是加上KeWaitForSingleObject
-    ByteOffset.QuadPart = BytesRead = 0;
+    //将文件读入缓冲区
+    ByteOffset.QuadPart = 0;
     Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, ReadBuffer,
-        FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesRead, EptReadWriteCallbackRoutine, &Event);
+        FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, EptReadWriteCallbackRoutine, &Event);
 
     KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 
-	if (!NT_SUCCESS(Status) || (BytesRead == 0)) {
+   
+	if (!NT_SUCCESS(Status)) {
 
-		//DbgPrint("EptIsTargetFile FltReadFile failed. Status = %d BytesRead = %d.\n", Status, BytesRead);
+        //STATUS_PENDING
+		DbgPrint("EptIsTargetFile FltReadFile failed. Status = %X.\n", Status);
 		FltObjectDereference(Volume);
 		FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
 		return FALSE;
@@ -355,7 +355,7 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
 	PVOID Buffer;
 	LARGE_INTEGER ByteOffset;
-	ULONG Length, BytesWritten, LengthReturned;
+	ULONG Length, LengthReturned;
 
 	//查询文件大小
 	Status = FltQueryInformationFile(FltObjects->Instance, FltObjects->FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
@@ -407,17 +407,16 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 			RtlMoveMemory(Buffer, FILE_FLAG, sizeof(FILE_FLAG));
 
 
-
         KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 
 		//写入加密标记头
-		ByteOffset.QuadPart = BytesWritten = 0;
+		ByteOffset.QuadPart = 0;
 		Status = FltWriteFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, Buffer,
-			FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesWritten, EptReadWriteCallbackRoutine, &Event);
+			FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, EptReadWriteCallbackRoutine, &Event);
 
         KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 
-        DbgPrint("EptWriteFileHeader hit. Write a header into file BytesWritten = %d.\n", BytesWritten);
+        DbgPrint("EptWriteFileHeader hit.\n");
 
 		if (!NT_SUCCESS(Status)) {
 

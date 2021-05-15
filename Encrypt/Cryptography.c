@@ -99,6 +99,8 @@ VOID EptAesCleanUp()
 BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* LengthReturned, BOOLEAN ReturnLengthFlag)
 {
 
+	UNREFERENCED_PARAMETER(FltObjects);
+
 	if (!AesInitVar.Flag)
 	{
 		return FALSE;
@@ -106,6 +108,7 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 
 	NTSTATUS Status;
 	ULONG OrigLength = EptGetFileSize(FltObjects) - FILE_FLAG_SIZE;
+	DbgPrint("OrigLength = %d.\n", OrigLength);
 	ULONG Length = OrigLength;
 
 	if ((Length % AES_BLOCK_SIZE) != 0)
@@ -194,6 +197,7 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 
 	if (!NT_SUCCESS(Status))
 	{
+		//STATUS_BUFFER_TOO_SMALL
 		DbgPrint("EptAesDecrypt BCryptDecrypt failed Status = %X.\n", Status);
 		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 		return FALSE;

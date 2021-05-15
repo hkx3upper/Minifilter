@@ -598,6 +598,8 @@ EncryptPreCreate(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
+    //DbgPrint("EncryptPreCreate hit.\n");
+
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
 
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -634,7 +636,9 @@ EncryptPostCreate(
 
         FltReleaseContext(StreamContext);
         return FLT_POSTOP_FINISHED_PROCESSING;
-    } 
+    }
+
+    //DbgPrint("EncryptPostCreate hit.\n");
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
 
@@ -649,6 +653,8 @@ EncryptPostCreate(
     EptSetFlagInContext(&StreamContext->FlagExist, TRUE);
     
     FltReleaseContext(StreamContext);
+
+    //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -736,7 +742,7 @@ EncryptPostRead(
 
     DbgPrint("EncryptPostRead hit.\n");
 
-    PostReadSwapBuffers(&Data, FltObjects, CompletionContext);
+    PostReadSwapBuffers(&Data, FltObjects, CompletionContext, Flags);
 
     DbgPrint("\n");
 
@@ -895,13 +901,11 @@ EncryptPostQueryInformation(
     StreamContext = CompletionContext;
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
-
         FltReleaseContext(StreamContext);
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
     if (!StreamContext->FlagExist) {
-
         FltReleaseContext(StreamContext);
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
@@ -913,7 +917,7 @@ EncryptPostQueryInformation(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    //DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
+    DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
@@ -949,7 +953,7 @@ EncryptPostQueryInformation(
                 if (Info->PositionInformation.CurrentByteOffset.QuadPart > FILE_FLAG_SIZE)
                 {
                     Info->PositionInformation.CurrentByteOffset.QuadPart -= FILE_FLAG_SIZE;
-                    DbgPrint("CurrentByteOffset = %d.\n", Info->PositionInformation.CurrentByteOffset.QuadPart);
+                    //DbgPrint("CurrentByteOffset = %d.\n", Info->PositionInformation.CurrentByteOffset.QuadPart);
                 }
 
             }
@@ -1060,7 +1064,7 @@ EncryptPreCleanUp(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    DbgPrint("EncryptPreCleanUp hit.\n");
+    //DbgPrint("EncryptPreCleanUp hit.\n");
     EptFileCacheClear(FltObjects->FileObject);
     
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
