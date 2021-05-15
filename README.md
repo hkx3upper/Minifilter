@@ -84,15 +84,15 @@ if (!EptIsTargetExtension(Data))
 
 //这里不需要用FltSetInformationFile分配EOF大小
 
-//初始化事件
+//初始化事件（重要，必须等待FltWriteFile和FltReadFile完成）
 ```
 KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 ```
 //写入加密标记头
 ```
-ByteOffset.QuadPart = BytesWritten = 0;
+ByteOffset.QuadPart = 0;
 Status = FltWriteFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, Buffer,
-	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesWritten, EptWriteCallbackRoutine, &Event);
+	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, EptReadWriteCallbackRoutine, &Event);
 ```
 //等待FltWriteFile完成
 ```
@@ -103,11 +103,13 @@ KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 //读取加密文件头  
 //将文件读入缓冲区
 ```
+Length = FILE_FLAG_SIZE;（重要）
+
 KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 
-ByteOffset.QuadPart = BytesRead = 0;
+ByteOffset.QuadPart = 0;
 Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, ReadBuffer,
-    FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesRead, EptReadWriteCallbackRoutine, &Event);
+    	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, EptReadWriteCallbackRoutine, &Event);
 
 KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 ```
