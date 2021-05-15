@@ -103,9 +103,13 @@ KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 //读取加密文件头  
 //将文件读入缓冲区
 ```
+KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
 ByteOffset.QuadPart = BytesRead = 0;
 Status = FltReadFile(FltObjects->Instance, FltObjects->FileObject, &ByteOffset, Length, ReadBuffer,
-	FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesRead, NULL, NULL);
+    FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, &BytesRead, EptReadWriteCallbackRoutine, &Event);
+
+KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 ```
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
