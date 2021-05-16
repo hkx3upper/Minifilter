@@ -21,7 +21,9 @@ Visual Studio 2019
 
 2021.05.15 使用微软Cryptography API: Next Generation（CNG）库的AES-128 ECB模式
 
-接下来将会考虑双缓冲方面的问题，完善匹配策略（校验进程MD5，实现双向链表存储）
+2021.05.16 完善匹配规则，实现双向链表存储
+
+接下来将会考虑双缓冲方面的问题
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
@@ -307,5 +309,77 @@ if (!NT_SUCCESS(Status))
     DbgPrint("EptAesEncrypt BCryptEncrypt failed Status = %X.\n", Status);
     ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
     return FALSE;
+}
+```
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+## 完善匹配规则，实现双向链表存储
+
+//使用以下结构体
+```
+typedef struct EPT_PROCESS_RULES
+{
+	LIST_ENTRY ListEntry;
+	char TargetProcessName[260];
+	char TargetExtension[100];
+	int count;
+
+}EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
+```
+//在DriverEntry中InitializeListHead(&ListHead);，在Unload中EptListCleanUp();，释放所有内存
+```
+VOID EptListCleanUp()
+{
+PEPT_PROCESS_RULES ProcessRules;
+PLIST_ENTRY pListEntry;
+
+while (!IsListEmpty(&ListHead))
+{
+    pListEntry = RemoveTailList(&ListHead);
+
+    ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
+    DbgPrint("Remove list node TargetProcessName = %s", ProcessRules->TargetProcessName);
+
+    ExFreePool(ProcessRules);
+}
+
+}
+```
+//在驱动MessageNotifyCallback函数中接收并插入链表
+```
+PEPT_PROCESS_RULES ProcessRules;
+ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
+if (!ProcessRules)
+{
+    DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules failed.\n");
+    return 0;
+}
+
+RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
+
+RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
+
+//DbgPrint("InsertTailList ProcessRules = %s ProcessRules->TargetProcessName = %s.\n", ProcessRules, ProcessRules->TargetProcessName);
+InsertTailList(&ListHead, &ProcessRules->ListEntry);
+
+break;
+```
+//使用以下方式遍历比较进程名和扩展名
+```
+PEPT_PROCESS_RULES ProcessRules;
+PLIST_ENTRY pListEntry = ListHead.Flink;
+
+while (pListEntry != &ListHead)
+{
+
+    ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
+
+    //比较操作
+		
+    pListEntry = pListEntry->Flink;
+
 }
 ```
