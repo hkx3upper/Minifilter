@@ -37,8 +37,9 @@
   <ItemGroup>
     <ClCompile Include="Cryptography.c" />
     <ClCompile Include="CommPort.c" />
+    <ClCompile Include="ProcessIdentity.c" />
     <ClCompile Include="SwapBuffers.c" />
-    <ClCompile Include="Common.c" />
+    <ClCompile Include="FileFunc.c" />
     <ClCompile Include="Context.c" />
     <ClCompile Include="Encrypt.c" />
     <Inf Include="Encrypt.inf" />
@@ -202,10 +203,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cryptography.h" />
-    <ClInclude Include="common.h" />
+    <ClInclude Include="filefunc.h" />
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="global.h" />
+    <ClInclude Include="processidentity.h" />
     <ClInclude Include="swapbuffers.h" />
   </ItemGroup>
   <ItemGroup>

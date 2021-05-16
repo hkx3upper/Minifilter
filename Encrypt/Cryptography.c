@@ -1,6 +1,6 @@
 
 #include "cryptography.h"
-#include "common.h"
+#include "filefunc.h"
 
 
 AES_INIT_VARIABLES AesInitVar;
@@ -108,6 +108,12 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 
 	NTSTATUS Status;
 	ULONG OrigLength = EptGetFileSize(FltObjects) - FILE_FLAG_SIZE;
+	if (OrigLength <= 0)
+	{
+		//这里如果FltReadFile，FltWriteFile不使用KeWaitForSingleObject，或者ReadLength != FILE_FLAG_SIZE，
+		//都会导致FltQueryInformationFile查询到的EndOfFile等于去掉FILE_FLAG_SIZE的大小，这里只是fail-safe
+		OrigLength = (ULONG)strlen((char*)Buffer);
+	}
 	DbgPrint("OrigLength = %d.\n", OrigLength);
 	ULONG Length = OrigLength;
 

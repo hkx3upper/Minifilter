@@ -27,7 +27,7 @@
     <ClCompile Include="Encrypt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Common.c">
+    <ClCompile Include="FileFunc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Context.c">
@@ -42,12 +42,15 @@
     <ClCompile Include="Cryptography.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ProcessIdentity.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="global.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="common.h">
+    <ClInclude Include="filefunc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="context.h">
@@ -60,6 +63,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="cryptography.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="processidentity.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

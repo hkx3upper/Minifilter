@@ -1,9 +1,9 @@
 
 #include "commport.h"
+#include "processidentity.h"
 
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
-EPT_PROCESS_RULES ProcessRules;
 
 NTSTATUS ConnectNotifyCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVOID ConnectionContext, ULONG SizeOfContext, PVOID* ConnectionPortCookie)
 {
@@ -72,7 +72,24 @@ NTSTATUS MessageNotifyCallback(PVOID PortCookie, PVOID InputBuffer, ULONG InputB
 		}
 		case 2:
 		{
-			RtlMoveMemory(&ProcessRules, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES));
+			//DbgPrint("%s", (Buffer + sizeof(EPT_MESSAGE_HEADER)));
+
+			PEPT_PROCESS_RULES ProcessRules;
+			ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
+			if (!ProcessRules)
+			{
+				DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules failed.\n");
+				return 0;
+			}
+
+			RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
+
+
+			RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
+
+			//DbgPrint("InsertTailList ProcessRules = %s ProcessRules->TargetProcessName = %s.\n", ProcessRules, ProcessRules->TargetProcessName);
+			InsertTailList(&ListHead, &ProcessRules->ListEntry);
+
 			break;
 		}
 		}

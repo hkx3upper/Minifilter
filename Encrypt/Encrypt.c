@@ -15,11 +15,12 @@ Environment:
 --*/
 
 #include "global.h"
-#include "common.h"
+#include "filefunc.h"
 #include "context.h"
 #include "swapbuffers.h"
 #include "commport.h"
 #include "cryptography.h"
+#include "processidentity.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -39,126 +40,6 @@ ULONG gTraceFlags = 0;
         DbgPrint _string :                          \
         ((int)0))
 
-/*************************************************************************
-    Prototypes
-*************************************************************************/
-
-EXTERN_C_START
-
-DRIVER_INITIALIZE DriverEntry;
-NTSTATUS
-DriverEntry (
-    _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-    );
-
-NTSTATUS
-EncryptInstanceSetup (
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
-    _In_ DEVICE_TYPE VolumeDeviceType,
-    _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-    );
-
-VOID
-EncryptInstanceTeardownStart (
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    );
-
-VOID
-EncryptInstanceTeardownComplete (
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    );
-
-NTSTATUS
-EncryptUnload (
-    _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-    );
-
-NTSTATUS
-EncryptInstanceQueryTeardown (
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
-    );
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreCreate(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostCreate(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreRead(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostRead(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreWrite(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostWrite (
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-    );
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreQueryInformation(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostQueryInformation(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
-
-FLT_PREOP_CALLBACK_STATUS
-EncryptPreCleanUp(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-);
-
-FLT_POSTOP_CALLBACK_STATUS
-EncryptPostCleanUp(
-    _Inout_ PFLT_CALLBACK_DATA Data,
-    _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
-
-EXTERN_C_END
 
 //
 //  Assign text sections for each routine.
@@ -475,11 +356,23 @@ Return Value:
     RtlInitUnicodeString(&FuncName, L"ZwQueryInformationProcess");
     pEptQueryInformationProcess = (EptQueryInformationProcess)(ULONG_PTR)MmGetSystemRoutineAddress(&FuncName);
 
+    InitializeListHead(&ListHead);
 
-    RtlZeroMemory(&ProcessRules, sizeof(EPT_PROCESS_RULES));
-    RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
-    RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
-    ProcessRules.count = 1;
+    //这里先初始化一个规则
+    PEPT_PROCESS_RULES ProcessRules;
+    ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
+    if (!ProcessRules)
+    {
+        DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules failed.\n");
+        return 0;
+    }
+
+    RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
+    RtlMoveMemory(ProcessRules->TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+    RtlMoveMemory(ProcessRules->TargetExtension, "txt,", sizeof("txt,"));
+    ProcessRules->count = 1;
+
+    InsertTailList(&ListHead, &ProcessRules->ListEntry);
     //
     //  Register with FltMgr to tell it our callback routines
     //
@@ -558,7 +451,9 @@ Return Value:
         FltUnregisterFilter(gFilterHandle);
     }
 
-    VOID EptAesCleanUp();
+    EptAesCleanUp();
+
+    EptListCleanUp();
 
     return STATUS_SUCCESS;
 }

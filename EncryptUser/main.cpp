@@ -70,9 +70,9 @@ int main()
 	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
 	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
 
-	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad++.exe", sizeof("notepad++.exe"));
 	RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
-	ProcessRules.count = 2;
+	ProcessRules.count = 1;
 	RtlMoveMemory(Buffer + sizeof(MessageHeader), &ProcessRules, sizeof(EPT_PROCESS_RULES));
 
 	if (!EptUserSendMessage(Buffer))

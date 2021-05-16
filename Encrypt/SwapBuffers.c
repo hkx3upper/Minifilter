@@ -1,6 +1,6 @@
 
 #include "swapbuffers.h"
-#include "common.h"
+#include "filefunc.h"
 #include "context.h"
 #include "cryptography.h"
 
