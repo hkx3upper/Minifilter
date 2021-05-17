@@ -89,7 +89,7 @@ if (!EptIsTargetExtension(Data))
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//写入加密文件头"ENCRYPTION"大小PAGE_SIZE
+//在PostCreate写入加密文件头"ENCRYPTION"大小PAGE_SIZE
 
 //这里不需要用FltSetInformationFile分配EOF大小
 
@@ -158,7 +158,10 @@ FltSetCallbackDataDirty(Data);
 //这里需要添加的是IRP_MJ_QUERY_INFORMATION  
 //因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE,  
 //否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白  
-//但是并不需要在PreSetInformation中设置任何的偏移
+
+//但是并不需要在PreSetInformation中设置任何的偏移，我觉得应该是因为在PostCreate中写入或读取了加密头，  
+//函数KeWaitForSingleObject保证了这两步进行完之后，Notepad.exe才能读写txt，这样在记事本看来，  
+//文件在打开之前就有了加密头，所以Notepad.exe只需要像正常读写文件一样，不需要每次重新设置EOF和AllocationSize
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
