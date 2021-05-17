@@ -8,7 +8,9 @@ Windows 10 x64
 Visual Studio 2019
 
 # 更新日志：
-2021.04.02 看《Windows内核安全与驱动开发》和微软的Minifilter Sample
+2021.04.02 研究《Windows内核安全与驱动开发》和微软的Minifilter Sample
+
+2021.04.16 项目立项
 
 2021.05.05 实现了基于SwapBuffers的异或加密解密
 
