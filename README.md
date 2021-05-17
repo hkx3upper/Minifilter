@@ -8,6 +8,7 @@ Windows 10 x64
 Visual Studio 2019
 
 # 更新日志：
+2021.04.02 看《Windows内核安全与驱动开发》和微软的Minifilter Sample
 
 2021.05.05 实现了基于SwapBuffers的异或加密解密
 
@@ -23,7 +24,7 @@ Visual Studio 2019
 
 2021.05.16 完善匹配规则，实现双向链表存储
 
-接下来将会考虑双缓冲方面的问题
+接下来将会考虑双缓冲方面的问题，验证进程（防止Process Hollowing）
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
