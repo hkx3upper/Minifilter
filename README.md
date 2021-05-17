@@ -24,7 +24,9 @@ Visual Studio 2019
 
 2021.05.16 完善匹配规则，实现双向链表存储
 
-接下来将会考虑缓冲处理的问题（使用double fcb），完善进程验证策略：客户端检查MD5（驱动将路径传入客户端，客户端返回Flag），防止Process Hollowing，防止dll注入。
+接下来将会考虑缓冲处理的问题（使用double fcb），  
+完善进程验证策略：客户端检查MD5（驱动将路径传入客户端，客户端返回Flag），防止Process Hollowing，防止dll注入，  
+考虑网络位置文件的处理。
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
@@ -45,7 +47,11 @@ https://github.com/xiao70/X70FSD
 
 《Windows NT File System Internals》
 
+https://docs.microsoft.com/en-us/windows/win32/seccng/encrypting-data-with-cng
+
 何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月   
+
+刘晗 基于双缓冲过滤驱动的透明加密系统研究与实现 2010 年 4 月
 
 # 以下是主要的步骤：
 
