@@ -8,6 +8,9 @@ Windows 10 x64
 Visual Studio 2019
 
 # 更新日志：
+2021.04.02 研究《Windows内核安全与驱动开发》和微软的Minifilter Sample
+
+2021.04.16 项目立项
 
 2021.05.05 实现了基于SwapBuffers的异或加密解密
 
@@ -23,7 +26,10 @@ Visual Studio 2019
 
 2021.05.16 完善匹配规则，实现双向链表存储
 
-接下来将会考虑双缓冲方面的问题
+接下来将会考虑双缓冲处理的问题（使用double fcb），  
+完善进程验证策略：客户端检查MD5（驱动将路径传入客户端，客户端返回Flag），  
+安全性：防止Process Hollowing，防止线程注入，  
+考虑网络位置文件的处理。
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
@@ -44,7 +50,11 @@ https://github.com/xiao70/X70FSD
 
 《Windows NT File System Internals》
 
+https://docs.microsoft.com/en-us/windows/win32/seccng/encrypting-data-with-cng
+
 何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月   
+
+刘晗 基于双缓冲过滤驱动的透明加密系统研究与实现 2010 年 4 月
 
 # 以下是主要的步骤：
 
@@ -82,7 +92,7 @@ if (!EptIsTargetExtension(Data))
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//写入加密文件头"ENCRYPTION"大小PAGE_SIZE
+//在PostCreate写入加密文件头"ENCRYPTION"大小PAGE_SIZE
 
 //这里不需要用FltSetInformationFile分配EOF大小
 
@@ -151,7 +161,10 @@ FltSetCallbackDataDirty(Data);
 //这里需要添加的是IRP_MJ_QUERY_INFORMATION  
 //因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE,  
 //否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白  
-//但是并不需要在PreSetInformation中设置任何的偏移
+
+//但是并不需要在PreSetInformation中设置任何的偏移，我觉得应该是因为在PostCreate中写入或读取了加密头，  
+//函数KeWaitForSingleObject保证了这两步进行完之后，Notepad.exe才能读写txt，这样在记事本看来，  
+//文件在打开之前就有了加密头，所以Notepad.exe只需要像正常读写文件一样，不需要每次重新设置EOF和AllocationSize
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
