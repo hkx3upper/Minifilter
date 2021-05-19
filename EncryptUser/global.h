@@ -24,4 +24,6 @@ typedef struct EPT_PROCESS_RULES
 	char TargetProcessName[MAX_PATH];
 	char TargetExtension[100];
 	int count;
+	UCHAR Hash[32];
+
 }EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;

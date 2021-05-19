@@ -3,6 +3,8 @@
 #include "global.h"
 
 #define PROCESS_RULES_BUFFER_TAG 'prBT'
+#define PROCESS_RULES_HASH_TAG 'prHT'
+#define PROCESS_FILE_BUFFER_TAG 'pfBT'
 
 typedef NTSTATUS(*EptQueryInformationProcess) (
 	_In_      HANDLE,
@@ -21,12 +23,17 @@ typedef struct EPT_PROCESS_RULES
 	char TargetProcessName[260];
 	char TargetExtension[100];
 	int count;
+	UCHAR Hash[32];
 
 }EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
 
 extern LIST_ENTRY ListHead;
 
+extern BOOLEAN CheckHash;
+
 VOID EptListCleanUp();
+
+NTSTATUS ComputeHash(PUCHAR Data, ULONG DataLength, PUCHAR* DataDigestPointer, ULONG* DataDigestLengthPointer);
 
 BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data);
 

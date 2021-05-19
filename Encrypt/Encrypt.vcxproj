@@ -37,7 +37,7 @@
   <ItemGroup>
     <ClCompile Include="Cryptography.c" />
     <ClCompile Include="CommPort.c" />
-    <ClCompile Include="ProcessIdentity.c" />
+    <ClCompile Include="ProcessVerify.c" />
     <ClCompile Include="SwapBuffers.c" />
     <ClCompile Include="FileFunc.c" />
     <ClCompile Include="Context.c" />
@@ -207,7 +207,7 @@
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="global.h" />
-    <ClInclude Include="processidentity.h" />
+    <ClInclude Include="processverify.h" />
     <ClInclude Include="swapbuffers.h" />
   </ItemGroup>
   <ItemGroup>

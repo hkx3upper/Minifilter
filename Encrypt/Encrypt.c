@@ -20,7 +20,7 @@ Environment:
 #include "swapbuffers.h"
 #include "commport.h"
 #include "cryptography.h"
-#include "processidentity.h"
+#include "processverify.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -372,7 +372,28 @@ Return Value:
     RtlMoveMemory(ProcessRules->TargetExtension, "txt,", sizeof("txt,"));
     ProcessRules->count = 1;
 
+    ULONGLONG Hash[4];
+    Hash[0] = 0xa28438e1388f272a;
+    Hash[1] = 0x52559536d99d65ba;
+    Hash[2] = 0x15b1a8288be1200e;
+    Hash[3] = 0x249851fdf7ee6c7e;
+
+    ULONGLONG TempHash;
+    RtlZeroMemory(ProcessRules->Hash, sizeof(ProcessRules->Hash));
+    
+    for (ULONG i = 0; i < 4; i++)
+    {
+        TempHash = Hash[i];
+        for (ULONG j = 0; j < 8; j++)
+        {
+            ProcessRules->Hash[8 * (i + 1) - 1 - j] = TempHash % 256;
+            TempHash = TempHash / 256;
+        }
+
+    }
+
     InsertTailList(&ListHead, &ProcessRules->ListEntry);
+
     //
     //  Register with FltMgr to tell it our callback routines
     //
@@ -488,6 +509,8 @@ EncryptPreCreate(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
+    //只要在PreCreate中检查Hash就可以了
+    CheckHash = TRUE;
     if (!EptIsTargetProcess(Data)) 
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;

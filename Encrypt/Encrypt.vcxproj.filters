@@ -42,7 +42,7 @@
     <ClCompile Include="Cryptography.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ProcessIdentity.c">
+    <ClCompile Include="ProcessVerify.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -65,7 +65,7 @@
     <ClInclude Include="cryptography.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="processidentity.h">
+    <ClInclude Include="processverify.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

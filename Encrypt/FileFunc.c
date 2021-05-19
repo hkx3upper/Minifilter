@@ -140,7 +140,7 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	}
 
-	DbgPrint("EptIsTargetFile Buffer = %p file content = %s.\n", ReadBuffer, (CHAR*)ReadBuffer);
+	//DbgPrint("EptIsTargetFile Buffer = %p file content = %s.\n", ReadBuffer, (CHAR*)ReadBuffer);
 
 	if (strncmp(FILE_FLAG, ReadBuffer, strlen(FILE_FLAG)) == 0) {
 
