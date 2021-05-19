@@ -526,9 +526,9 @@ if(CheckHash)
     return FALSE;
 }
 ```
-//这里在从客户端传入Hash到驱动之前，对Hash进行转换
-//因为ULONGLONG是小端序，
-//而ComputeHash输出的是十六进制的Hash值，是大端序
+//这里在从客户端传入Hash到驱动之前，对Hash进行转换  
+//因为ULONGLONG是小端序，  
+//而ComputeHash输出的是十六进制的Hash值，是大端序  
 //做一下转换
 ```
 ULONGLONG Hash[4];
