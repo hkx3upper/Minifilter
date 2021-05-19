@@ -23,14 +23,20 @@ Visual Studio 2019
 
 2021.05.16 完善匹配规则，实现双向链表存储
 
-2021.05.19 实现进程可执行文件的Hash验证，防止名称相同的进程读取数据
+2021.05.19 驱动中实现进程可执行文件的Hash验证，防止名称相同的进程读取数据
 
-接下来将会考虑双缓冲方面的问题
+# 发展方向：
+
+接下来将会考虑双缓冲方面的问题（double fcb）；
+
+考虑客户端安全性的问题：防止Process Hollowing，线程注入；
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
 
 https://github.com/microsoft/Windows-driver-samples/tree/master/filesys/miniFilter/swapBuffers
+
+https://github.com/microsoft/Windows-classic-samples
 
 https://github.com/minglinchen/WinKernelDev/tree/master/crypt_file
 
@@ -40,13 +46,17 @@ https://github.com/shines77/Antinvader2015
 
 https://github.com/comor86/MyMiniEncrypt
 
+https://github.com/guidoreina/minivers
+
 https://github.com/xiao70/X70FSD
 
 《Windows内核安全与驱动开发》
 
 《Windows NT File System Internals》
 
-何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月   
+何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月
+
+刘晗 基于双缓冲过滤驱动的透明加密系统研究与实现 2010 年 4 月
 
 # 以下是主要的步骤：
 
@@ -383,5 +393,160 @@ while (pListEntry != &ListHead)
 		
     pListEntry = pListEntry->Flink;
 
+}
+```
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+## 驱动中实现进程可执行文件的Hash验证
+```
+//这里用到了Windows-classic-samples-master\Samples\Security\SignHashAndVerifySignature
+//中的ComputeHash函数计算Hash
+
+NTSTATUS ComputeHash(
+	PUCHAR Data, 
+	ULONG DataLength, 
+	PUCHAR* DataDigestPointer, 
+	ULONG* DataDigestLengthPointer)
+```
+//把exe文件读到Buffer
+```
+NTSTATUS EptReadProcessFile(
+	UNICODE_STRING ProcessName,
+	PUCHAR* Buffer,
+	PULONG Length
+	)
+{
+	OBJECT_ATTRIBUTES ObjectAttributes;
+	NTSTATUS Status;
+	HANDLE FileHandle;
+	IO_STATUS_BLOCK IoStatusBlock;
+
+	FILE_STANDARD_INFORMATION FileStandInfo;
+	LARGE_INTEGER ByteOffset;
+
+	InitializeObjectAttributes(
+		&ObjectAttributes, 
+		&ProcessName, 
+		OBJ_CASE_INSENSITIVE, 
+		NULL, 
+		NULL);
+
+	Status = ZwOpenFile(
+		&FileHandle, 
+		GENERIC_READ,
+		&ObjectAttributes, 
+		&IoStatusBlock, 
+		FILE_SHARE_VALID_FLAGS,
+		FILE_NON_DIRECTORY_FILE);
+
+	if (!NT_SUCCESS(Status))
+	{
+		//STATUS_SHARING_VIOLATION
+		DbgPrint("EptReadProcessFile ZwOpenFile failed Status = %X.\n", Status);
+		return Status;
+	}
+
+	//查询文件大小，分配内存
+	Status = ZwQueryInformationFile(
+		FileHandle, 
+		&IoStatusBlock, 
+		&FileStandInfo, 
+		sizeof(FILE_STANDARD_INFORMATION), 
+		FileStandardInformation);
+
+	if (!NT_SUCCESS(Status))
+	{
+		DbgPrint("EptReadProcessFile ZwQueryInformationFile failed.\n");
+		ZwClose(FileHandle);
+		return Status;
+	}
+
+	(*Buffer) = ExAllocatePoolWithTag(
+		PagedPool, 
+		FileStandInfo.EndOfFile.QuadPart, 
+		PROCESS_FILE_BUFFER_TAG);
+
+	if (!(*Buffer))
+	{
+		DbgPrint("EptReadProcessFile ExAllocatePoolWithTag Buffer failed.\n");
+		ZwClose(FileHandle);
+		return Status;
+	}
+
+	ByteOffset.QuadPart = 0;
+	Status = ZwReadFile(
+		FileHandle, 
+		NULL, NULL, NULL, 
+		&IoStatusBlock, 
+		(*Buffer),
+		(ULONG)FileStandInfo.EndOfFile.QuadPart, 
+		&ByteOffset, 
+		NULL);
+
+	if (!NT_SUCCESS(Status))
+	{
+		DbgPrint("EptReadProcessFile ZwReadFile failed.\n");
+		ZwClose(FileHandle);
+		ExFreePool((*Buffer));
+		return Status;
+	}
+
+	*Length = (ULONG)FileStandInfo.EndOfFile.QuadPart;
+	return Status;
+}
+```
+//在EptIsTargetProcess函数中判断Hash，CheckHash标志位是全局变量，在PreCreate中时，设为TRUE
+```
+if(CheckHash)
+{
+    PUCHAR ReadBuffer = NULL;
+    ULONG Length;
+    Status = EptReadProcessFile(*ProcessName, &ReadBuffer, &Length);
+
+    if (NT_SUCCESS(Status))
+    {
+					
+        if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
+        {
+            if (ReadBuffer)
+                ExFreePool(ReadBuffer);
+            CheckHash = FALSE;
+            return TRUE;
+        }
+        else
+        {
+            if (ReadBuffer)
+                ExFreePool(ReadBuffer);
+            CheckHash = FALSE;
+            return FALSE;
+        }
+    }
+    return FALSE;
+}
+```
+//这里在从客户端传入Hash到驱动之前，对Hash进行转换
+//因为ULONGLONG是小端序，
+//而ComputeHash输出的是十六进制的Hash值，是大端序
+//做一下转换
+ULONGLONG Hash[4];
+Hash[0] = 0xa28438e1388f272a;
+Hash[1] = 0x52559536d99d65ba;
+Hash[2] = 0x15b1a8288be1200e;
+Hash[3] = 0x249851fdf7ee6c7e;
+
+ULONGLONG TempHash;
+RtlZeroMemory(ProcessRules->Hash, sizeof(ProcessRules->Hash));
+    
+for (ULONG i = 0; i < 4; i++)
+{
+    TempHash = Hash[i];
+    for (ULONG j = 0; j < 8; j++)
+    {
+        ProcessRules->Hash[8 * (i + 1) - 1 - j] = TempHash % 256;
+        TempHash = TempHash / 256;
+    }
 }
 ```
