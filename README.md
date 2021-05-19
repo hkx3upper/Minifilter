@@ -404,7 +404,6 @@ while (pListEntry != &ListHead)
 ```
 //这里用到了Windows-classic-samples-master\Samples\Security\SignHashAndVerifySignature
 //中的ComputeHash函数计算Hash
-
 NTSTATUS ComputeHash(
 	PUCHAR Data, 
 	ULONG DataLength, 
@@ -531,6 +530,7 @@ if(CheckHash)
 //因为ULONGLONG是小端序，
 //而ComputeHash输出的是十六进制的Hash值，是大端序
 //做一下转换
+```
 ULONGLONG Hash[4];
 Hash[0] = 0xa28438e1388f272a;
 Hash[1] = 0x52559536d99d65ba;
