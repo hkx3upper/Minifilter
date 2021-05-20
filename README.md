@@ -582,6 +582,22 @@ PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
     }
 ```
+//在PostQueryInformation中，将EOF对齐AES_BLOCK_SIZE
+```
+case FileEndOfFileInformation:
+    {
+        //DbgPrint("5.\n");
+        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+        break;
+    }
+```
 //在EptAesDecrypt(PUCHAR Buffer, ULONG Length)中将Length += AES_BLOCK_SIZE;  
 //这一步是因为BCryptEncrypt即便是已经对齐，仍然会自动填充AES_BLOCK_SIZE大小的数据  
-//所以，PostRead中，长度应该再加AES_BLOCK_SIZE
+//所以，PostRead中，长度应该再加AES_BLOCK_SIZE  
+//这样每次移动，仍然会丢失AES_BLOCK_SIZE大小的数据，但是因为AES-128 ECB加密前后的数据是对应的  
+//而丢失的这块数据是已经对齐后，仍然会自动填充AES_BLOCK_SIZE大小的数据，所以并不影响正常数据的解密
