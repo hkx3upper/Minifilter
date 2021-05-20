@@ -165,8 +165,8 @@ FltSetCallbackDataDirty(Data);
 //这里需要添加的是IRP_MJ_QUERY_INFORMATION  
 //因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE,  
 //否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白  
-//但是并不需要在PreSetInformation中设置任何的偏移
-//应该是因为KeWaitForSingleObject保证了文件加密头的读写是在Notapad打开之前
+//但是并不需要在PreSetInformation中设置任何的偏移  
+//应该是因为KeWaitForSingleObject保证了文件加密头的读写是在Notapad打开之前  
 //这样文件加密头的写入就像正常读写一样
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
