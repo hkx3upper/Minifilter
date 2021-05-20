@@ -120,9 +120,8 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     (*Data)->Iopb->Parameters.Write.MdlAddress = NewMdl;
     (*Data)->Iopb->Parameters.Write.WriteBuffer = NewBuffer;
 
+
     *CompletionContext = SwapWriteContext;
-
-
     //加密函数
 
     DbgPrint("PreWrite NewBuffer content = %s.\n", NewBuffer);
@@ -133,8 +132,6 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     //}
     //这里WriteLength作为NewBuffer的大小传入，作为LengthReturned传出
     EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE);
-    (*Data)->Iopb->Parameters.Write.Length = WriteLength;
-
     DbgPrint("PreWrite Encrypted content = %s.\n", NewBuffer);
 
     //cleanup
@@ -360,7 +357,7 @@ FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, 
         NewBuffer = SwapReadContext->NewBuffer;
         ReadLength = (ULONG)Data->IoStatus.Information;
 
-        DbgPrint("PostRead Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
+        DbgPrint("PostReadWhenSafe Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
 
         //for (ULONG i = 0; i < ReadLength; i++)
         //{
@@ -369,7 +366,7 @@ FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, 
 
         EptAesDecrypt(NewBuffer, ReadLength);
 
-        DbgPrint("PostRead Decrypted content = %s.\n", NewBuffer);
+        DbgPrint("PostReadWhenSafe Decrypted content = %s.\n", NewBuffer);
 
         if (SwapReadContext->NewBuffer)
             RtlCopyMemory(OrigBuffer, SwapReadContext->NewBuffer, Data->IoStatus.Information);

@@ -103,6 +103,12 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
       EncryptPreQueryInformation,
       EncryptPostQueryInformation
     },
+
+    { IRP_MJ_SET_INFORMATION,
+      0,
+      EncryptPreSetInformation,
+      EncryptPostSetInformation
+    },
         
     { IRP_MJ_CLEANUP,
       0,
@@ -567,7 +573,7 @@ EncryptPostCreate(
 
     //到这里说明文件有加密标识头，设置StreamContext标识位
     //if(!AlreadyDefined)不行，可能在CleanUp中已经建立StreamContext，AlreadyDefined=TRUE，但是没有设置标识位
-    DbgPrint("Set StreamContext->FlagExist\n");
+    //DbgPrint("Set StreamContext->FlagExist\n");
     EptSetFlagInContext(&StreamContext->FlagExist, TRUE);
     
     FltReleaseContext(StreamContext);
@@ -835,7 +841,7 @@ EncryptPostQueryInformation(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
+    //DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
@@ -898,7 +904,6 @@ EncryptPostQueryInformation(
         //DbgPrint("5.\n");
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
-        //DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FilePositionInformation:
@@ -936,6 +941,87 @@ EncryptPostQueryInformation(
     FltSetCallbackDataDirty(Data);
 
     //DbgPrint("\n");
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+
+FLT_PREOP_CALLBACK_STATUS
+EncryptPreSetInformation(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
+)
+{
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
+
+    PEPT_STREAM_CONTEXT StreamContext;
+    BOOLEAN AlreadyDefined;
+
+    PAGED_CODE();
+
+    if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
+
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+
+        FltReleaseContext(StreamContext);
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    if (!StreamContext->FlagExist) {
+
+        FltReleaseContext(StreamContext);
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    FltReleaseContext(StreamContext);
+
+    if (!EptIsTargetProcess(Data))
+    {
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+
+    PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
+
+    switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass)
+    {
+
+    case FileEndOfFileInformation:
+    {
+        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+        DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        break;
+    }
+
+    }
+   
+
+
+    return FLT_PREOP_SUCCESS_WITH_CALLBACK;
+}
+
+FLT_POSTOP_CALLBACK_STATUS
+EncryptPostSetInformation(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags
+)
+{
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
@@ -1008,3 +1094,4 @@ EncryptPostCleanUp(
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
+

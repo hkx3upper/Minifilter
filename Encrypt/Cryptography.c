@@ -185,6 +185,7 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 	{
 		Length = (Length / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 	}
+	Length += AES_BLOCK_SIZE;
 
 	BufferSize = ROUND_TO_SIZE(Length, PAGE_SIZE);
 
@@ -204,6 +205,8 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 	if (!NT_SUCCESS(Status))
 	{
 		//STATUS_BUFFER_TOO_SMALL
+		//STATUS_INVALID_HANDLE
+		//STATUS_DATA_ERROR
 		DbgPrint("EptAesDecrypt BCryptDecrypt failed Status = %X.\n", Status);
 		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 		return FALSE;
