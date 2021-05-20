@@ -904,6 +904,10 @@ EncryptPostQueryInformation(
         //DbgPrint("5.\n");
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
         break;
     }
     case FilePositionInformation:
@@ -1004,8 +1008,6 @@ EncryptPreSetInformation(
     }
 
     }
-   
-
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
