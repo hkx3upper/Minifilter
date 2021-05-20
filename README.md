@@ -27,6 +27,8 @@ Visual Studio 2019
 
 2021.05.19 驱动中实现进程可执行文件的Hash验证（SHA-256）
 
+2021.05.20 解决BCryptEncrypt自动填充数据，但EOF没有改变，导致文件移动后，加密后的填充数据丢失
+
 # 发展方向：
 
 接下来将会考虑双缓冲方面的问题（double fcb）；
@@ -554,3 +556,32 @@ for (ULONG i = 0; i < 4; i++)
     }
 }
 ```
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+## 解决BCryptEncrypt自动填充数据，但EOF没有改变，导致文件移动后，加密后的填充数据丢失
+//在PreSetInformation中，将EOF对齐AES_BLOCK_SIZE
+```
+PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
+
+    switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass)
+    {
+
+    case FileEndOfFileInformation:
+    {
+        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+        DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        break;
+    }
+
+    }
+```
+//在EptAesDecrypt(PUCHAR Buffer, ULONG Length)中将Length += AES_BLOCK_SIZE;  
+//这一步是因为BCryptEncrypt即便是已经对齐，仍然会自动填充AES_BLOCK_SIZE大小的数据  
+//所以，PostRead中，长度应该再加AES_BLOCK_SIZE
