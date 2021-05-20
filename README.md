@@ -7,6 +7,8 @@ Windows 10 x64
 
 Visual Studio 2019
 
+Notepad.exe x64
+
 # 更新日志：
 
 2021.04.16 项目立项
