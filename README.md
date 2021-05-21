@@ -33,7 +33,7 @@ Notepad.exe x64
 
 # 发展方向：
 
-接下来将会考虑双缓冲方面的问题（double fcb）；
+接下来将会考虑双缓冲方面的问题（LayerFsd或者像Dokany一样FUSE用户空间）；
 
 考虑客户端安全性的问题：防止Process Hollowing，线程注入；
 
@@ -60,6 +60,8 @@ https://github.com/guidoreina/minivers
 
 https://github.com/xiao70/X70FSD
 
+https://github.com/dokan-dev/dokany
+
 《Windows内核安全与驱动开发》
 
 《Windows NT File System Internals》
@@ -67,6 +69,8 @@ https://github.com/xiao70/X70FSD
 何明 基于Minifilter微框架的文件加解密系统的设计与实现 2014 年 6 月
 
 刘晗 基于双缓冲过滤驱动的透明加密系统研究与实现 2010 年 4 月
+
+何翔 基于 IBE 和 FUSE 的双向透明文件加密系统的研究与实现 2017 年 4 月
 
 # 以下是主要的步骤：
 
