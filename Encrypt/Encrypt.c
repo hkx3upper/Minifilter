@@ -516,7 +516,7 @@ EncryptPreCreate(
     }
 
     //只要在PreCreate中检查Hash就可以了
-    CheckHash = TRUE;
+    //CheckHash = TRUE;
     if (!EptIsTargetProcess(Data)) 
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;

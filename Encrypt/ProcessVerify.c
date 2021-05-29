@@ -3,7 +3,7 @@
 #include <bcrypt.h>
 
 LIST_ENTRY ListHead;
-BOOLEAN CheckHash;
+BOOLEAN CheckHash = FALSE;
 
 VOID EptListCleanUp()
 {
