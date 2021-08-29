@@ -114,15 +114,11 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 		//都会导致FltQueryInformationFile查询到的EndOfFile等于去掉FILE_FLAG_SIZE的大小，这里只是fail-safe
 		OrigLength = (ULONG)strlen((char*)Buffer);
 	}
-	DbgPrint("OrigLength = %d.\n", OrigLength);
-	ULONG Length = OrigLength;
 
-	if ((Length % AES_BLOCK_SIZE) != 0)
-	{
-		Length = (Length / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-	}
+	//DbgPrint("OrigLength = %d.\n", OrigLength);
 
-	PUCHAR TempBuffer = ExAllocatePoolWithTag(PagedPool, Length, ENCRYPT_TEMP_BUFFER);
+
+	PUCHAR TempBuffer = ExAllocatePoolWithTag(PagedPool, OrigLength, ENCRYPT_TEMP_BUFFER);
 
 	if (!TempBuffer)
 	{
@@ -130,7 +126,7 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 		return FALSE;
 	}
 
-	RtlZeroMemory(TempBuffer, Length);
+	RtlZeroMemory(TempBuffer, OrigLength);
 	RtlMoveMemory(TempBuffer, Buffer, OrigLength);
 
 	if (ReturnLengthFlag)
@@ -140,7 +136,7 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 		//If this flag is not specified, the size of the plaintext specified in the cbInput parameter 
 		//must be a multiple of the algorithm's block size.
 		
-		Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, BCRYPT_BLOCK_PADDING);
+		Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, 0);
 
 		if (!NT_SUCCESS(Status))
 		{
@@ -149,14 +145,14 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 			return FALSE;
 		}
 
-		DbgPrint("PreWrite AesEncrypt Length = %d LengthReturned = %d.\n", Length, *LengthReturned);
+		DbgPrint("PreWrite AesEncrypt Length = %d LengthReturned = %d.\n", OrigLength, *LengthReturned);
 
 		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 		return TRUE;
 	}
 
 
-	Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, BCRYPT_BLOCK_PADDING);
+	Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, 0);
 
 	if (!NT_SUCCESS(Status))
 	{
@@ -181,11 +177,8 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 	NTSTATUS Status;
 	ULONG LengthReturned, BufferSize;
 
-	if ((Length % AES_BLOCK_SIZE) != 0)
-	{
-		Length = (Length / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-	}
-	Length += AES_BLOCK_SIZE;
+	//DbgPrint("EptAesDecrypt Length = %d.\n", Length);
+
 
 	BufferSize = ROUND_TO_SIZE(Length, PAGE_SIZE);
 
@@ -200,7 +193,7 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 	RtlZeroMemory(TempBuffer, Length);
 	RtlMoveMemory(TempBuffer, Buffer, Length);
 
-	Status = BCryptDecrypt(AesInitVar.hKey, TempBuffer, Length, NULL, NULL, 0, Buffer, BufferSize, &LengthReturned, BCRYPT_BLOCK_PADDING);
+	Status = BCryptDecrypt(AesInitVar.hKey, TempBuffer, Length, NULL, NULL, 0, Buffer, BufferSize, &LengthReturned, 0);
 
 	if (!NT_SUCCESS(Status))
 	{

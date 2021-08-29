@@ -3,7 +3,7 @@
 #include <bcrypt.h>
 
 LIST_ENTRY ListHead;
-BOOLEAN CheckHash = FALSE;
+BOOLEAN CheckHash;
 
 VOID EptListCleanUp()
 {
@@ -371,7 +371,6 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 		return FALSE;
 	}
 
-	//DbgPrint("ProcessName = %s.\n", AnisProcessName.Buffer);
 
 	//找到进程名
 	p = AnisProcessName.Buffer + AnisProcessName.Length;
@@ -384,7 +383,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 	if (p != AnisProcessName.Buffer)
 		p++;
 
-	//DbgPrint("ProcessName = %s.\n", p);
+	//DbgPrint("[EptIsTargetProcess]->ProcessName = %s.\n", p);
 
 	//遍历链表，取出ProcessName，并比较
 	PEPT_PROCESS_RULES ProcessRules;
@@ -396,6 +395,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
 
 		//大写便于比较
+		RtlZeroMemory(Temp, 260);
 		RtlMoveMemory(Temp, ProcessRules->TargetProcessName, strlen(ProcessRules->TargetProcessName));
 
 		RtlMoveMemory(AnisProcessName.Buffer, _strupr(AnisProcessName.Buffer), strlen(AnisProcessName.Buffer));
@@ -404,7 +404,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 		if (strcmp(p, Temp) == 0) {
 
 			RtlFreeAnsiString(&AnisProcessName);
-			//DbgPrint("EptIsTargetProcess hit Process Name = %s.\n", Temp);
+			//DbgPrint("EptIsTargetProcess hit Process Name = %s.\n", p);
 
 			//如果是在PreCreate中调用EptIsTargetProcess
 			//CheckHash = TRUE，进入if
@@ -510,8 +510,8 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 				if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
 				{
 					FltReleaseFileNameInformation(FileNameInfo);
+					//DbgPrint("[EptIsTargetExtension] Extension is same %ws.\n", Extension);
 					RtlFreeUnicodeString(&Extension);
-					//DbgPrint("EptIsTargetExtension hit.\n");
 					return TRUE;
 				}
 

@@ -364,7 +364,7 @@ Return Value:
 
     InitializeListHead(&ListHead);
 
-    //这里先初始化一个规则
+    /*这里先初始化一个规则*/
     PEPT_PROCESS_RULES ProcessRules;
     ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
     if (!ProcessRules)
@@ -399,6 +399,26 @@ Return Value:
     }
 
     InsertTailList(&ListHead, &ProcessRules->ListEntry);
+
+
+    PEPT_PROCESS_RULES ProcessRules2;
+
+    ProcessRules2 = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
+    if (!ProcessRules2)
+    {
+        DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules2 failed.\n");
+        return 0;
+    }
+
+    RtlZeroMemory(ProcessRules2, sizeof(EPT_PROCESS_RULES));
+    RtlMoveMemory(ProcessRules2->TargetProcessName, "notepad++.exe", sizeof("notepad++.exe"));
+    RtlMoveMemory(ProcessRules2->TargetExtension, "txt,", sizeof("txt,"));
+    ProcessRules2->count = 1;
+
+
+    InsertTailList(&ListHead, &ProcessRules2->ListEntry);
+
+
 
     //
     //  Register with FltMgr to tell it our callback routines
@@ -516,7 +536,7 @@ EncryptPreCreate(
     }
 
     //只要在PreCreate中检查Hash就可以了
-    //CheckHash = TRUE;
+    CheckHash = FALSE;
     if (!EptIsTargetProcess(Data)) 
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -549,7 +569,6 @@ EncryptPostCreate(
     UNREFERENCED_PARAMETER(Flags);
 
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined = FALSE;
 
     StreamContext = CompletionContext;
 
@@ -564,7 +583,7 @@ EncryptPostCreate(
 
     //DbgPrint("EncryptPostCreate hit.\n");
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
         FltReleaseContext(StreamContext);
         DbgPrint("EncryptPostCreate EptGetOrSetContext failed.\n");;
@@ -573,7 +592,7 @@ EncryptPostCreate(
 
     //到这里说明文件有加密标识头，设置StreamContext标识位
     //if(!AlreadyDefined)不行，可能在CleanUp中已经建立StreamContext，AlreadyDefined=TRUE，但是没有设置标识位
-    //DbgPrint("Set StreamContext->FlagExist\n");
+    DbgPrint("[EncryptPostCreate]->Set StreamContext->FlagExist\n");
     EptSetFlagInContext(&StreamContext->FlagExist, TRUE);
     
     FltReleaseContext(StreamContext);
@@ -596,7 +615,6 @@ EncryptPreRead(
     UNREFERENCED_PARAMETER(CompletionContext);
 
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
 
     if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
@@ -615,7 +633,7 @@ EncryptPreRead(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
         FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -668,6 +686,7 @@ EncryptPostRead(
 
     PostReadSwapBuffers(&Data, FltObjects, CompletionContext, Flags);
 
+
     DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
@@ -687,7 +706,6 @@ EncryptPreWrite(
     UNREFERENCED_PARAMETER(CompletionContext);
     
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
 
     if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
@@ -706,7 +724,7 @@ EncryptPreWrite(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
         FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -767,6 +785,7 @@ EncryptPostWrite (
         ExFreePool(SwapWriteContext);
     }
 
+
     DbgPrint("\n");
     
     return FLT_POSTOP_FINISHED_PROCESSING;
@@ -820,11 +839,11 @@ EncryptPostQueryInformation(
     PAGED_CODE();
 
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
+    LONGLONG FileOffset = 0;
 
     StreamContext = CompletionContext;
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
         FltReleaseContext(StreamContext);
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
@@ -834,37 +853,49 @@ EncryptPostQueryInformation(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    FltReleaseContext(StreamContext);
-
     if (!EptIsTargetProcess(Data))
     {
+        FltReleaseContext(StreamContext);
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    //DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
+    DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
+
+    if (StreamContext->FileSize > 0 &&(StreamContext->FileSize % AES_BLOCK_SIZE != 0))
+    {
+        FileOffset = (StreamContext->FileSize / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE - StreamContext->FileSize;
+    }
+    else if (StreamContext->FileSize > 0 && (StreamContext->FileSize % AES_BLOCK_SIZE == 0))
+    {
+        FileOffset = 0;
+    }
+
+    DbgPrint("FileOffset = %d.\n", FileOffset);
 
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
 
     case FileStandardInformation:
     {
-        //DbgPrint("1.\n");
         PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
         Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
-        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
         break;
     }
     case FileAllInformation:
     {
-        //DbgPrint("2.\n");
         PFILE_ALL_INFORMATION Info = (PFILE_ALL_INFORMATION)InfoBuffer;
         if (Data->IoStatus.Information >=
             sizeof(FILE_BASIC_INFORMATION) +
             sizeof(FILE_STANDARD_INFORMATION))
         {
-            Info->StandardInformation.AllocationSize.QuadPart -= FILE_FLAG_SIZE;
-            Info->StandardInformation.EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+            if (Info->StandardInformation.AllocationSize.QuadPart > FILE_FLAG_SIZE)
+            {
+                Info->StandardInformation.AllocationSize.QuadPart -= FILE_FLAG_SIZE;
+            }
+            
+            Info->StandardInformation.EndOfFile.QuadPart = Info->StandardInformation.EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
 
             if (Data->IoStatus.Information >=
                 sizeof(FILE_BASIC_INFORMATION) +
@@ -886,7 +917,6 @@ EncryptPostQueryInformation(
     }
     case FileAllocationInformation:
     {
-        //DbgPrint("3.\n");
         PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
         Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
         //DbgPrint("AllocationSize = %d.\n", Info->AllocationSize.QuadPart);
@@ -894,25 +924,18 @@ EncryptPostQueryInformation(
     }
     case FileValidDataLengthInformation:
     {
-        //DbgPrint("4.\n");
         PFILE_VALID_DATA_LENGTH_INFORMATION Info = (PFILE_VALID_DATA_LENGTH_INFORMATION)InfoBuffer;
         Info->ValidDataLength.QuadPart -= FILE_FLAG_SIZE;
         break;
     }
     case FileEndOfFileInformation:
     {
-        //DbgPrint("5.\n");
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
-        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
-        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
-        {
-            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-        }
+        Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
         break;
     }
     case FilePositionInformation:
     {
-        //DbgPrint("6.\n");
         PFILE_POSITION_INFORMATION Info = (PFILE_POSITION_INFORMATION)InfoBuffer;
         if (Info->CurrentByteOffset.QuadPart > FILE_FLAG_SIZE)
         {
@@ -924,7 +947,6 @@ EncryptPostQueryInformation(
     }
     case FileStreamInformation:
     {
-        //DbgPrint("7.\n");
         PFILE_STREAM_INFORMATION Info = (PFILE_STREAM_INFORMATION)InfoBuffer;
         Info->StreamAllocationSize.QuadPart -= FILE_FLAG_SIZE;
         Info->StreamSize.QuadPart -= FILE_FLAG_SIZE;
@@ -933,7 +955,7 @@ EncryptPostQueryInformation(
     case FileNetworkOpenInformation:
     {
         PFILE_NETWORK_OPEN_INFORMATION  Info = (PFILE_NETWORK_OPEN_INFORMATION)InfoBuffer;
-        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
+        Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
         Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;;
     }
     default:
@@ -944,6 +966,8 @@ EncryptPostQueryInformation(
 
     FltSetCallbackDataDirty(Data);
 
+
+    FltReleaseContext(StreamContext);
     //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
@@ -961,8 +985,12 @@ EncryptPreSetInformation(
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
 
+    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+    {
+        return FLT_PREOP_DISALLOW_FASTIO;
+    }
+
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
 
     PAGED_CODE();
 
@@ -971,25 +999,25 @@ EncryptPreSetInformation(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
         FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!StreamContext->FlagExist) {
-
+    if (!StreamContext->FlagExist) 
+    {
         FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
-
-    FltReleaseContext(StreamContext);
 
     if (!EptIsTargetProcess(Data))
     {
+        FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
+    DbgPrint("[EncryptPreSetInformation] hit FileInformationClass = %d.\n", Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
@@ -1001,13 +1029,38 @@ EncryptPreSetInformation(
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
         {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
             Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
         }
-        DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        else
+        {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+        }
+        
+        DbgPrint("EncryptPreSetInformation FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        break;
+    }
+    case FileAllocationInformation:
+    {
+        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+        else
+        {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+        }
+
+        DbgPrint("EncryptPreSetInformation FileAllocationInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
 
     }
+
+
+    FltReleaseContext(StreamContext);
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
@@ -1044,14 +1097,13 @@ EncryptPreCleanUp(
 
 
     PEPT_STREAM_CONTEXT StreamContext;
-    BOOLEAN AlreadyDefined;
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
 
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT, &AlreadyDefined)) {
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
         FltReleaseContext(StreamContext);
         return FLT_PREOP_SUCCESS_NO_CALLBACK;

@@ -134,6 +134,7 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE);
     DbgPrint("PreWrite Encrypted content = %s.\n", NewBuffer);
 
+
     //cleanup
     if (Status != FLT_PREOP_SUCCESS_WITH_CALLBACK) {
 
@@ -287,16 +288,9 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     NewBuffer = SwapReadContext->NewBuffer;
     ReadLength = (ULONG)(*Data)->IoStatus.Information;
 
-    DbgPrint("PostRead Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, (*Data)->Iopb->Parameters.Read.Length);
-
-    //for (ULONG i = 0; i < ReadLength; i++)
-    //{
-    //    NewBuffer[i] ^= 0x77;
-    //}
 
     EptAesDecrypt(NewBuffer, ReadLength);
 
-    DbgPrint("PostRead Decrypted content = %s.\n", NewBuffer);
 
 
     try

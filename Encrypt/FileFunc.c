@@ -177,11 +177,11 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
 	if (!NT_SUCCESS(Status) || Status == STATUS_VOLUME_DISMOUNTED) {
 
-		DbgPrint("EptWriteFileHeader FltQueryInformationFile failed.\n");
+		//DbgPrint("EptWriteFileHeader FltQueryInformationFile failed.\n");
 		return FALSE;
 	}
 
-	//DbgPrint("LengthReturned = %d FileEOFInfo = %I64d.\n", LengthReturned, StandardInfo.EndOfFile.QuadPart);
+	//DbgPrint("(*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess = %x.\n", (*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess);
 
 	//分配文件头FILE_FLAG_SIZE大小，写入文件flag
 	if (StandardInfo.EndOfFile.QuadPart == 0

@@ -59,7 +59,7 @@ BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE Conte
 }
 
 
-BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType, BOOLEAN* AlreadyDefined) {
+BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType) {
 
 	NTSTATUS Status = 0;
 	PFLT_CONTEXT NewContext = NULL, OldContext = NULL;
@@ -68,6 +68,7 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 	
 	NewContext = *CompletionContext;
 
+	
 	switch (ContextType) {
 
 	case FLT_STREAM_CONTEXT:
@@ -82,8 +83,8 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 	}
 
 	}
-	
-	
+
+
 
 	if (Status == STATUS_NOT_FOUND) {
 
@@ -105,12 +106,11 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 
 		*CompletionContext = OldContext;
 
-		*AlreadyDefined = TRUE;
 
 		return TRUE;
 	}
-
-
+	
+	
 	switch (ContextType) {
 
 	case FLT_STREAM_CONTEXT:
@@ -127,7 +127,7 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 	}
 
 
-	
+
 	if (!NT_SUCCESS(Status)) {
 
 		FltReleaseContext(NewContext);
@@ -140,7 +140,6 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 
 			*CompletionContext = OldContext;
 
-			*AlreadyDefined = TRUE;
 
 			return TRUE;
 		}
@@ -153,4 +152,6 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 	*CompletionContext = NewContext;
 
 	return TRUE;
+
+	
 }

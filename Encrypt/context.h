@@ -5,6 +5,7 @@
 typedef struct EPT_STREAM_CONTEXT {
 
 	LONG FlagExist;
+	LONGLONG FileSize;
 
 }EPT_STREAM_CONTEXT, * PEPT_STREAM_CONTEXT;
 
@@ -29,4 +30,4 @@ VOID EptSetFlagInContext(LONG* Flag, BOOLEAN Set);
 
 BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType);
 
-BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType, BOOLEAN* AlreadyDefined);
+BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType);

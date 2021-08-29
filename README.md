@@ -31,7 +31,11 @@ Notepad.exe x64
 
 2021.05.20 解决BCryptEncrypt自动填充数据，但EOF没有改变，导致文件移动后，加密后的填充数据丢失
 
+2021.08.29 解决链表中进程匹配问题，解决加密解密后EOF问题
+
 # 发展方向：
+
+实现链表储存加密文件链表，并存储到本地
 
 接下来将会考虑双缓冲方面的问题（LayerFsd或者像Dokany一样FUSE用户空间）；
 
@@ -40,6 +44,8 @@ Notepad.exe x64
 # 未修复的bug：
 
 复制粘贴已加密文件，有一定几率会先进入PreWrite，造成重复加密，导致数据损坏
+
+暂不支持notepad++.exe wps.exe wpp.exe等
 
 # 参考：
 因为书中是基于传统文件过滤驱动的，用在Minifilter中有很多的出入，因此参考了很多相关的资料，谢谢
@@ -290,17 +296,6 @@ typedef struct AES_INIT_VARIABLES
     BOOLEAN Flag;
 }AES_INIT_VARIABLES, * PAES_INIT_VARIABLES;
 ```
-//但这里我们用的是ECB，所以BCryptEncrypt，BCryptDecrypt函数不需要pbIV，也就是不需要初始块  
-//另外将参数设置为BCRYPT_BLOCK_PADDING，这样也不用手动对齐数据，函数会自动填补到AES_BLOCK_SIZE  
-//但是还是需要做一个对齐，以便分配在加解密函数中使用的TempBuffer的大小  
-```
-ULONG OrigLength = EptGetFileSize(FltObjects) - FILE_FLAG_SIZE;
-ULONG Length = OrigLength;
-if ((Length % AES_BLOCK_SIZE) != 0)
-{
-    Length = (Length / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-}
-```
 //因为每次Data->Iopb->Parameters.Write.Length和Data->Iopb->Parameters.Read.Length都是PAGE_SIZE的整数倍  
 //又因为加密之后的数据比原始数据大，所以在PostRead中不需要调用BCryptDecrypt获取解密后数据大小  
 //但是PreWrite需要调用BCryptEncrypt返回加密后数据的大小，根据这个大小分配之后替换的内存，  
@@ -314,7 +309,7 @@ if (ReturnLengthFlag)
 //If this flag is not specified, the size of the plaintext specified in the cbInput parameter 
 //must be a multiple of the algorithm's block size.
 
-Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, BCRYPT_BLOCK_PADDING);
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, 0
 
     if (!NT_SUCCESS(Status))
     {
@@ -330,7 +325,7 @@ Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, N
 }
 
 
-Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, BCRYPT_BLOCK_PADDING);
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, 0
 
 if (!NT_SUCCESS(Status))
 {
@@ -571,43 +566,61 @@ for (ULONG i = 0; i < 4; i++)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-## 解决BCryptEncrypt自动填充数据，但EOF没有改变，导致文件移动后，加密后的填充数据丢失
-//在PreSetInformation中，将EOF对齐AES_BLOCK_SIZE
+## 解决加密解密后EOF问题
+//在PreSetInformation中（这里相当于给txt文件分配内存），将EOF对齐AES_BLOCK_SIZE，并在streamcontext中记录文件原始大小
+因为分配内存时，直接分配了16的倍数，所以加解密时不需要再对齐了
 ```
-PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
-
-    switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass)
-    {
-
-    case FileEndOfFileInformation:
+ case FileEndOfFileInformation:
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
         {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
             Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
         }
-        DbgPrint("EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        else
+        {
+            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+        }
+        
+        DbgPrint("EncryptPreSetInformation FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
+    }
+case FileAllocationInformation:
+{
+    PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+    if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+    {
+        StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+        Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+    }
+    else
+    {
+        StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
     }
 
-    }
+    DbgPrint("EncryptPreSetInformation FileAllocationInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+    break;
+}
 ```
-//在PostQueryInformation中，将EOF对齐AES_BLOCK_SIZE
+//在EncryptPostQueryInformation中（这里是Read之前，记事本查询所需信息），
+调整EOF，因为加密解密时使16字节对齐的，解密后，会有16-原始大小的空白字符，需要调整EOF，
 ```
-case FileEndOfFileInformation:
+ if (StreamContext->FileSize > 0 &&(StreamContext->FileSize % AES_BLOCK_SIZE != 0))
     {
-        //DbgPrint("5.\n");
-        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
-        Info->EndOfFile.QuadPart -= FILE_FLAG_SIZE;
-        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
-        {
-            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-        }
+        FileOffset = (StreamContext->FileSize / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE - StreamContext->FileSize;
+    }
+    else if (StreamContext->FileSize > 0 && (StreamContext->FileSize % AES_BLOCK_SIZE == 0))
+    {
+        FileOffset = 0;
+    }
+
+case FileStandardInformation:
+    {
+        PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
+        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
+        Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
         break;
     }
+   	
 ```
-//在EptAesDecrypt(PUCHAR Buffer, ULONG Length)中将Length += AES_BLOCK_SIZE;  
-//这一步是因为BCryptEncrypt即便是已经对齐，仍然会自动填充AES_BLOCK_SIZE大小的数据  
-//所以，PostRead中，长度应该再加AES_BLOCK_SIZE  
-//这样每次移动，仍然会丢失AES_BLOCK_SIZE大小的数据，但是因为AES-128 ECB加密前后的数据是对应的  
-//而丢失的这块数据是已经对齐后，自动填充的数据，所以并不影响正常数据的解密
