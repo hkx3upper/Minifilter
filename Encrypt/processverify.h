@@ -33,8 +33,8 @@ extern BOOLEAN CheckHash;
 
 VOID EptListCleanUp();
 
-NTSTATUS ComputeHash(PUCHAR Data, ULONG DataLength, PUCHAR* DataDigestPointer, ULONG* DataDigestLengthPointer);
+NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer);
 
-BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data);
+BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data);
 
-BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data);
+BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data);

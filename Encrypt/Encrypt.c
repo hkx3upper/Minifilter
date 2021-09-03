@@ -369,7 +369,7 @@ Return Value:
     ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
     if (!ProcessRules)
     {
-        DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules failed.\n");
+        DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules failed.\n");
         return 0;
     }
 
@@ -406,7 +406,7 @@ Return Value:
     ProcessRules2 = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
     if (!ProcessRules2)
     {
-        DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules2 failed.\n");
+        DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules2 failed.\n");
         return 0;
     }
 
@@ -542,7 +542,7 @@ EncryptPreCreate(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    //DbgPrint("EncryptPreCreate hit.\n");
+    //DbgPrint("[EncryptPreCreate]->hit.\n");
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
 
@@ -577,26 +577,37 @@ EncryptPostCreate(
     //如果既不是新建有加密头，又不是已有加密头，说明是目标进程打开的普通文件，结束处理
     if (!EptWriteFileHeader(&Data, FltObjects) && !EptIsTargetFile(FltObjects)) {
 
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    //DbgPrint("EncryptPostCreate hit.\n");
+    //DbgPrint("[EncryptPostCreate]->hit.\n");
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
-        FltReleaseContext(StreamContext);
-        DbgPrint("EncryptPostCreate EptGetOrSetContext failed.\n");;
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
+        DbgPrint("[EncryptPostCreate]->EptGetOrSetContext failed.\n");;
     }
 
 
     //到这里说明文件有加密标识头，设置StreamContext标识位
-    //if(!AlreadyDefined)不行，可能在CleanUp中已经建立StreamContext，AlreadyDefined=TRUE，但是没有设置标识位
-    DbgPrint("[EncryptPostCreate]->Set StreamContext->FlagExist\n");
     EptSetFlagInContext(&StreamContext->FlagExist, TRUE);
+    DbgPrint("[EncryptPostCreate]->Set StreamContext->FlagExist\n");
     
-    FltReleaseContext(StreamContext);
-
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
+    
     //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
@@ -635,17 +646,29 @@ EncryptPreRead(
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     if (!StreamContext->FlagExist) 
     {
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    FltReleaseContext(StreamContext);
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
 
     if (!EptIsTargetProcess(Data))
     {
@@ -658,7 +681,7 @@ EncryptPreRead(
     }
 
 
-    DbgPrint("EncryptPreRead hit.\n");
+    DbgPrint("[EncryptPreRead]->hit.\n");
 
     PreReadSwapBuffers(&Data, FltObjects, CompletionContext);
 
@@ -682,7 +705,7 @@ EncryptPostRead(
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-    DbgPrint("EncryptPostRead hit.\n");
+    DbgPrint("[EncryptPostRead]->hit.\n");
 
     PostReadSwapBuffers(&Data, FltObjects, CompletionContext, Flags);
 
@@ -726,17 +749,29 @@ EncryptPreWrite(
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     if (!StreamContext->FlagExist) {
 
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    FltReleaseContext(StreamContext);
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
 
     if (!EptIsTargetProcess(Data))
     {
@@ -748,7 +783,7 @@ EncryptPreWrite(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    DbgPrint("EncryptPreWrite hit.\n");
+    DbgPrint("[EncryptPreWrite]->hit.\n");
 
     PreWriteSwapBuffers(&Data, FltObjects, CompletionContext);
 
@@ -771,7 +806,7 @@ EncryptPostWrite (
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-    DbgPrint("EncryptPostWrite hit.\n");
+    DbgPrint("[EncryptPostWrite]->hit.\n");
 
     PSWAP_BUFFER_CONTEXT SwapWriteContext = CompletionContext;
 
@@ -843,23 +878,37 @@ EncryptPostQueryInformation(
 
     StreamContext = CompletionContext;
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-        FltReleaseContext(StreamContext);
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) 
+    {
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    if (!StreamContext->FlagExist) {
-        FltReleaseContext(StreamContext);
+    if (!StreamContext->FlagExist) 
+    {
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
     if (!EptIsTargetProcess(Data))
     {
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    DbgPrint("EncryptPostQueryInformation hit FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
+    DbgPrint("[EncryptPostQueryInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
@@ -872,7 +921,7 @@ EncryptPostQueryInformation(
         FileOffset = 0;
     }
 
-    DbgPrint("FileOffset = %d.\n", FileOffset);
+    DbgPrint("[EncryptPostQueryInformation]->FileOffset = %d.\n", FileOffset);
 
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
 
@@ -967,7 +1016,11 @@ EncryptPostQueryInformation(
     FltSetCallbackDataDirty(Data);
 
 
-    FltReleaseContext(StreamContext);
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
     //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;
@@ -1001,23 +1054,37 @@ EncryptPreSetInformation(
 
     if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
 
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     if (!StreamContext->FlagExist) 
     {
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     if (!EptIsTargetProcess(Data))
     {
-        FltReleaseContext(StreamContext);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    DbgPrint("[EncryptPreSetInformation] hit FileInformationClass = %d.\n", Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
+    DbgPrint("[EncryptPreSetInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
+
+    // 4096 -> 3->16      956
 
     PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
@@ -1037,7 +1104,7 @@ EncryptPreSetInformation(
             StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
         }
         
-        DbgPrint("EncryptPreSetInformation FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        DbgPrint("[EncryptPreSetInformation]->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FileAllocationInformation:
@@ -1060,7 +1127,11 @@ EncryptPreSetInformation(
     }
 
 
-    FltReleaseContext(StreamContext);
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
 
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
 }
@@ -1103,26 +1174,38 @@ EncryptPreCleanUp(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-
-        FltReleaseContext(StreamContext);
+    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) 
+    {
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!StreamContext->FlagExist) {
-
-        FltReleaseContext(StreamContext);
+    if (!StreamContext->FlagExist) 
+    {
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    FltReleaseContext(StreamContext);
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
 
     if (!EptIsTargetProcess(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    //DbgPrint("EncryptPreCleanUp hit.\n");
+    //DbgPrint("[EncryptPreCleanUp]->hit.\n");
     EptFileCacheClear(FltObjects->FileObject);
     
     return FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -1143,7 +1226,7 @@ EncryptPostCleanUp(
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-    //DbgPrint("EncryptPostCleanUp hit.\n");
+    //DbgPrint("[EncryptPostCleanUp]->hit.\n");
     //DbgPrint("\n");
 
     return FLT_POSTOP_FINISHED_PROCESSING;

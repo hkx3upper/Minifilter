@@ -5,7 +5,7 @@
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
 
-NTSTATUS ConnectNotifyCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVOID ConnectionContext, ULONG SizeOfContext, PVOID* ConnectionPortCookie)
+NTSTATUS ConnectNotifyCallback(IN PFLT_PORT ClientPort, IN PVOID ServerPortCookie, IN PVOID ConnectionContext, IN ULONG SizeOfContext, IN PVOID* ConnectionPortCookie)
 {
 
 	UNREFERENCED_PARAMETER(ServerPortCookie);
@@ -15,7 +15,7 @@ NTSTATUS ConnectNotifyCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVO
 
 	PAGED_CODE();
 
-	DbgPrint("Encrypt connect with user.\n");
+	DbgPrint("[ConnectNotifyCallback]->connect with user.\n");
 
 	gClientPort = ClientPort;
 
@@ -23,19 +23,19 @@ NTSTATUS ConnectNotifyCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVO
 }
 
 
-VOID DisconnectNotifyCallback(PVOID ConnectionCookie)
+VOID DisconnectNotifyCallback(IN PVOID ConnectionCookie)
 {
 	UNREFERENCED_PARAMETER(ConnectionCookie);
 
 	PAGED_CODE();
 
-	DbgPrint("Encrypt disconnect with user.\n");
+	DbgPrint("[DisconnectNotifyCallback]->disconnect with user.\n");
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
 
 
-NTSTATUS MessageNotifyCallback(PVOID PortCookie, PVOID InputBuffer, ULONG InputBufferLength, PVOID OutputBuffer, ULONG OutputBufferLength, PULONG ReturnOutputBufferLength)
+NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULONG InputBufferLength, IN PVOID OutputBuffer, IN ULONG OutputBufferLength, OUT PULONG ReturnOutputBufferLength)
 {
 	UNREFERENCED_PARAMETER(PortCookie);
 	UNREFERENCED_PARAMETER(InputBufferLength);
@@ -115,6 +115,7 @@ BOOLEAN EptInitCommPort()
 
 	if(!NT_SUCCESS(Status))
 	{
+		DbgPrint("[EptInitCommPort]->FltBuildDefaultSecurityDescriptor failed. Status = %x\n", Status);
 		return FALSE;
 	}
 
@@ -129,6 +130,7 @@ BOOLEAN EptInitCommPort()
 	if (!NT_SUCCESS(Status))
 	{
 		FltCloseCommunicationPort(gServerPort);
+		DbgPrint("[EptInitCommPort]->FltCreateCommunicationPort failed. Status = %x\n", Status);
 		return FALSE;
 	}
 

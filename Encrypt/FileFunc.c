@@ -60,8 +60,10 @@ VOID EptReadWriteCallbackRoutine(
 }
 
 
-ULONG EptGetFileSize(PCFLT_RELATED_OBJECTS FltObjects)
+ULONG EptGetFileSize(IN PCFLT_RELATED_OBJECTS FltObjects)
 {
+    ASSERT(FltObjects != NULL);
+
     FILE_STANDARD_INFORMATION StandardInfo;
     ULONG LengthReturned;
 
@@ -72,7 +74,9 @@ ULONG EptGetFileSize(PCFLT_RELATED_OBJECTS FltObjects)
 
 
 //判断是否为带有加密标记的文件
-BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
+BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects) 
+{
+    ASSERT(FltObjects != NULL);
 
 	NTSTATUS Status;
 	PFLT_VOLUME Volume;
@@ -90,18 +94,22 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	if (!NT_SUCCESS(Status)) {
 
-		DbgPrint("EptIsTargetFile FltGetVolumeFromInstance failed.\n");
+		DbgPrint("[EptIsTargetFile]->FltGetVolumeFromInstance failed. Stattus = %x\n", Status);
 		return FALSE;
 	}
 
 	Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &Length);
 
-	/*if (NT_ERROR(Status)) {
+	if (NT_ERROR(Status)) {
 
-		FltObjectDereference(Volume);
-		DbgPrint("DEptIsTargetFile FltGetVolumeProperties failed.\n");
+        if (NULL != Volume)
+        {
+            FltObjectDereference(Volume);
+            Volume = NULL;
+        }
+		DbgPrint("[DEptIsTargetFile]->FltGetVolumeProperties failed.\n");
 		return FALSE;
-	}*/
+	}
 
 	//DbgPrint("VolumeProps.SectorSize = %d.\n", VolumeProps.SectorSize);
 
@@ -113,8 +121,12 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	if (!ReadBuffer) {
 
-		FltObjectDereference(Volume);
-		DbgPrint("EptIsTargetFile ExAllocatePool failed.\n");
+        if (NULL != Volume)
+        {
+            FltObjectDereference(Volume);
+            Volume = NULL;
+        }
+		DbgPrint("[EptIsTargetFile]->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n");
 		return FALSE;
 	}
 
@@ -134,8 +146,17 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
         //STATUS_PENDING
 		DbgPrint("EptIsTargetFile FltReadFile failed. Status = %X.\n", Status);
-		FltObjectDereference(Volume);
-		FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+        if (NULL != Volume)
+        {
+            FltObjectDereference(Volume);
+            Volume = NULL;
+        }
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+		
 		return FALSE;
 
 	}
@@ -144,24 +165,43 @@ BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects) {
 
 	if (strncmp(FILE_FLAG, ReadBuffer, strlen(FILE_FLAG)) == 0) {
 
-		FltObjectDereference(Volume);
-		FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
-		DbgPrint("EptIsTargetFile hit. TargetFile is match.\n");
+        if (NULL != Volume)
+        {
+            FltObjectDereference(Volume);
+            Volume = NULL;
+        }
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+		DbgPrint("[EptIsTargetFile]->TargetFile is match.\n");
 		return TRUE;
 	}
 
-	FltObjectDereference(Volume);
-	FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+    if (NULL != Volume)
+    {
+        FltObjectDereference(Volume);
+        Volume = NULL;
+    }
+
+    if (NULL != ReadBuffer)
+    {
+        FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+        ReadBuffer = NULL;
+    }
 	return FALSE;
 }
 
 
 //如果是新建的文件，且有写入数据的倾向，写入加密标记头
-BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects) {
+BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects) {
+
+    ASSERT(Data != NULL);
+    ASSERT(FltObjects != NULL);
 
 	NTSTATUS Status;
 	FILE_STANDARD_INFORMATION StandardInfo;
-	//FILE_END_OF_FILE_INFORMATION FileEOFInfo;
 
 	PFLT_VOLUME Volume;
 	FLT_VOLUME_PROPERTIES VolumeProps;
@@ -177,7 +217,7 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
 	if (!NT_SUCCESS(Status) || Status == STATUS_VOLUME_DISMOUNTED) {
 
-		//DbgPrint("EptWriteFileHeader FltQueryInformationFile failed.\n");
+		DbgPrint("[EptWriteFileHeader]->FltQueryInformationFile failed. Status = %x\n", Status);
 		return FALSE;
 	}
 
@@ -187,18 +227,13 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 	if (StandardInfo.EndOfFile.QuadPart == 0
 		&& ((*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))) {
 
-		if (!NT_SUCCESS(Status)) {
-
-			DbgPrint("EptWriteFileHeader FltSetInformationFile failed.\n");
-			return FALSE;
-		}
 		
 		//根据FltWriteFile对于Length的要求，Length必须是扇区大小的整数倍
 		Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("EptWriteFileHeader FltGetVolumeFromInstance failed.\n");
+			DbgPrint("[EptWriteFileHeader]->FltGetVolumeFromInstance failed. Status = %x\n", Status);
 			return FALSE;
 		}
 
@@ -207,12 +242,17 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 		Length = max(sizeof(FILE_FLAG), FILE_FLAG_SIZE);
 		Length = ROUND_TO_SIZE(Length, VolumeProps.SectorSize);
 
-		FltObjectDereference(Volume);
+        if (NULL != Volume)
+        {
+            FltObjectDereference(Volume);
+            Volume = NULL;
+        }
+
 
 		Buffer = ExAllocatePoolWithTag(NonPagedPool, Length, 'wiBF');
 		if (!Buffer) {
 
-			DbgPrint("EptWriteFileHeader ExAllocatePoolWithTag failed.\n");
+			DbgPrint("[EptWriteFileHeader]->ExAllocatePoolWithTag Buffer failed.\n");
 			return FALSE;
 		}
 
@@ -231,16 +271,25 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
         KeWaitForSingleObject(&Event, Executive, KernelMode, TRUE, 0);
 
-        DbgPrint("EptWriteFileHeader hit.\n");
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("EptWriteFileHeader FltWriteFile failed.\n");
-			ExFreePool(Buffer);
+			DbgPrint("[EptWriteFileHeader]->FltWriteFile failed. Status = %x\n", Status);
+            if (NULL != Buffer)
+            {
+                ExFreePool(Buffer);
+                Buffer = NULL;
+            }
 			return FALSE;
 		}
 
-        ExFreePool(Buffer);
+        DbgPrint("[EptWriteFileHeader]->FltWriteFile success.\n");
+
+        if (NULL != Buffer)
+        {
+            ExFreePool(Buffer);
+            Buffer = NULL;
+        }
 
 		return TRUE;
 	}
@@ -250,7 +299,7 @@ BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 
 
 //清除文件缓冲，https://github.com/SchineCompton/Antinvader
-VOID EptFileCacheClear(PFILE_OBJECT pFileObject)
+VOID EptFileCacheClear(IN PFILE_OBJECT pFileObject)
 {
     // FCB
     PFSRTL_COMMON_FCB_HEADER pFcb;

@@ -3,7 +3,13 @@
 #include "context.h"
 
 
-VOID EptSetFlagInContext(LONG* Flag, BOOLEAN Set) {
+VOID EptSetFlagInContext(IN LONG* Flag, IN BOOLEAN Set) {
+
+	if (NULL == Flag)
+	{
+		DbgPrint("[EptSetFlagInContext]->Flag is NULL.\n");
+		return;
+	}
 
 	if (Set) {
 
@@ -13,7 +19,7 @@ VOID EptSetFlagInContext(LONG* Flag, BOOLEAN Set) {
 }
 
 
-BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType) {
+BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType) {
 
 	NTSTATUS Status;
 	PFLT_CONTEXT Context = NULL;
@@ -26,7 +32,7 @@ BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE Conte
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("EptCreateStreamContext FltAllocateContext FLT_STREAM_CONTEXT failed.\n");
+			DbgPrint("[EptCreateContext]->FltAllocateContext FLT_STREAM_CONTEXT failed. Status = %X\n", Status);
 			return FALSE;
 		}
 
@@ -40,7 +46,7 @@ BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE Conte
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("EptCreateStreamContext FltAllocateContext FLT_STREAMHANDLE_CONTEXT failed.\n");
+			DbgPrint("[EptCreateContext]->FltAllocateContext FLT_STREAMHANDLE_CONTEXT failed. Status = %X\n", Status);
 			return FALSE;
 		}
 
@@ -59,7 +65,7 @@ BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE Conte
 }
 
 
-BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType) {
+BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType) {
 
 	NTSTATUS Status = 0;
 	PFLT_CONTEXT NewContext = NULL, OldContext = NULL;
@@ -92,7 +98,7 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 	}
 	else if (!NT_SUCCESS(Status)) {
 
-		DbgPrint("EptGetOrSetStreamCtx FltGetStreamContext failed.\n");
+		DbgPrint("[EptGetOrSetContext]->FltGetStream/StreamHandle Context failed. Status = %x\n", Status);
 		return FALSE;
 	}
 	else {
@@ -102,6 +108,7 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 		if (NewContext != NULL) {
 
 			FltReleaseContext(NewContext);
+			NewContext = NULL;
 		}
 
 		*CompletionContext = OldContext;
@@ -144,7 +151,7 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 			return TRUE;
 		}
 
-		DbgPrint("EptGetOrSetContext failed twice.\n");
+		DbgPrint("[EptGetOrSetContext]->FltGetStream/StreamHandle Context failed twice. Status = %x\n", Status);
 		*CompletionContext = NULL;
 		return FALSE;
 	}
@@ -153,5 +160,4 @@ BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObj
 
 	return TRUE;
 
-	
 }

@@ -15,15 +15,20 @@ VOID EptListCleanUp()
 		pListEntry = RemoveTailList(&ListHead);
 
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
-		DbgPrint("Remove list node TargetProcessName = %s", ProcessRules->TargetProcessName);
+		DbgPrint("[EptListCleanUp]->Remove list node TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
 
-		ExFreePool(ProcessRules);
+		if (NULL != ProcessRules)
+		{
+			ExFreePool(ProcessRules);
+			ProcessRules = NULL;
+		}
+		
 	}
 
 }
 
 
-NTSTATUS ComputeHash(PUCHAR Data, ULONG DataLength, PUCHAR* DataDigestPointer, ULONG* DataDigestLengthPointer)
+NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer)
 {
 	//Windows-classic-samples-master\Samples\Security\SignHashAndVerifySignature
 
@@ -159,15 +164,27 @@ cleanup:
 
 
 BOOLEAN EptVerifyHash(
-	PUCHAR Buffer, 
-	ULONG Length,
-	PUCHAR	OrigHash
+	IN PUCHAR Buffer, 
+	IN ULONG Length,
+	IN PUCHAR	OrigHash
 	)
 {
-	if (OrigHash == NULL)
+	if (NULL == Buffer)
 	{
-		DbgPrint("Please input the hash of the confidential process\n");
-		return TRUE;
+		DbgPrint("[EptVerifyHash]->Buffer is NULL.\n");
+		return FALSE;
+	}
+
+	if (0 == Length)
+	{
+		DbgPrint("[EptVerifyHash]->Length is NULL.\n");
+		return FALSE;
+	}
+
+	if (NULL == OrigHash)
+	{
+		DbgPrint("[EptVerifyHash]->Please input the hash of the confidential process\n");
+		return FALSE;
 	}
 
 	ULONG LengthReturned;
@@ -183,12 +200,14 @@ BOOLEAN EptVerifyHash(
 	{
 		if (!strncmp((char*)Hash, (char*)OrigHash, 32)) 
 		{
-			//DbgPrint("Hash is match.\n");
+			DbgPrint("[EptVerifyHash]->Hash is match.\n");
 			ExFreePool(Hash);
+			Hash = NULL;
 			return TRUE;
 		}
 
 		ExFreePool(Hash);
+		Hash = NULL;
 	}
 
 	return FALSE;
@@ -196,12 +215,18 @@ BOOLEAN EptVerifyHash(
 
 
 NTSTATUS EptReadProcessFile(
-	UNICODE_STRING ProcessName,
-	PUCHAR* Buffer,
-	PULONG Length
+	IN UNICODE_STRING ProcessName,
+	OUT PUCHAR* Buffer,
+	OUT PULONG Length
 	)
-//换一下代码风格
 {
+
+	if (NULL == ProcessName.Buffer)
+	{
+		DbgPrint("[EptReadProcessFile]->ProcessName is NULL.\n");
+		return FALSE;
+	}
+
 	OBJECT_ATTRIBUTES ObjectAttributes;
 	NTSTATUS Status;
 	HANDLE FileHandle;
@@ -228,7 +253,7 @@ NTSTATUS EptReadProcessFile(
 	if (!NT_SUCCESS(Status))
 	{
 		//STATUS_SHARING_VIOLATION
-		DbgPrint("EptReadProcessFile ZwOpenFile failed Status = %X.\n", Status);
+		DbgPrint("[EptReadProcessFile]->ZwOpenFile failed. Status = %X.\n", Status);
 		return Status;
 	}
 
@@ -242,8 +267,13 @@ NTSTATUS EptReadProcessFile(
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptReadProcessFile ZwQueryInformationFile failed.\n");
-		ZwClose(FileHandle);
+		DbgPrint("[EptReadProcessFile]->ZwQueryInformationFile failed. Status = %X.\n", Status);
+
+		if (NULL != FileHandle)
+		{
+			ZwClose(FileHandle);
+			FileHandle = NULL;
+		}
 		return Status;
 	}
 
@@ -254,8 +284,12 @@ NTSTATUS EptReadProcessFile(
 
 	if (!(*Buffer))
 	{
-		DbgPrint("EptReadProcessFile ExAllocatePoolWithTag Buffer failed.\n");
-		ZwClose(FileHandle);
+		DbgPrint("[EptReadProcessFile]->ExAllocatePoolWithTag Buffer failed.\n");
+		if (NULL != FileHandle)
+		{
+			ZwClose(FileHandle);
+			FileHandle = NULL;
+		}
 		return Status;
 	}
 
@@ -271,9 +305,18 @@ NTSTATUS EptReadProcessFile(
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptReadProcessFile ZwReadFile failed.\n");
-		ZwClose(FileHandle);
-		ExFreePool((*Buffer));
+		DbgPrint("[EptReadProcessFile]->ZwReadFile failed. Status = %X.\n", Status);
+		if (NULL != FileHandle)
+		{
+			ZwClose(FileHandle);
+			FileHandle = NULL;
+		}
+
+		if (NULL != (*Buffer))
+		{
+			ExFreePool((*Buffer));
+			*Buffer = NULL;
+		}
 		return Status;
 	}
 
@@ -284,13 +327,26 @@ NTSTATUS EptReadProcessFile(
 
 //获取请求的进程名
 BOOLEAN EptGetProcessName(
-	PFLT_CALLBACK_DATA Data, 
-	PUNICODE_STRING ProcessName
+	IN PFLT_CALLBACK_DATA Data, 
+	IN PUNICODE_STRING ProcessName
 	) 
 //ie浏览器会导致UNEXPECTED KERNEL MODE TRAP?
 //所以在PreCreate先过滤扩展名，尽量避免trap
 //或者以后可以使用遍历EPROCESS，获得进程名
 {
+
+	if (NULL == Data)
+	{
+		DbgPrint("[EptGetProcessName]->Data is NULL.\n");
+		return FALSE;
+	}
+
+
+	if (NULL == ProcessName->Buffer)
+	{
+		DbgPrint("[EptGetProcessName]->ProcessName is NULL.\n");
+		return FALSE;
+	}
 
 	NTSTATUS Status;
 	PEPROCESS eProcess;
@@ -300,7 +356,7 @@ BOOLEAN EptGetProcessName(
 
 	if (!pEptQueryInformationProcess) {
 
-		DbgPrint("pEptQueryInformationProcess = %p.\n", pEptQueryInformationProcess);
+		DbgPrint("[EptGetProcessName]->pEptQueryInformationProcess = %p.\n", pEptQueryInformationProcess);
 		return FALSE;
 	}
 
@@ -308,7 +364,7 @@ BOOLEAN EptGetProcessName(
 
 	if (!eProcess) {
 
-		DbgPrint("EProcess FltGetRequestorProcess failed.\n.");
+		DbgPrint("[EptGetProcessName]->EProcess FltGetRequestorProcess failed.\n.");
 		return FALSE;
 	}
 
@@ -321,15 +377,24 @@ BOOLEAN EptGetProcessName(
 		if (NT_SUCCESS(Status)) {
 
 			//DbgPrint("DfGetProcessName = %ws, Length = %d.\n", ProcessName->Buffer, ProcessName->Length);
-			ZwClose(hProcess);
+			if (NULL != hProcess)
+			{
+				ZwClose(hProcess);
+				hProcess = NULL;
+			}
 			return TRUE;
 		}
 		else if (Status == STATUS_INFO_LENGTH_MISMATCH) {
 
-			DbgPrint("pDfQueryInformationProcess buffer too small.\n");
+			DbgPrint("[EptGetProcessName]->pDfQueryInformationProcess buffer too small.\n");
 		}
 
-		ZwClose(hProcess);
+		if (NULL != hProcess)
+		{
+			ZwClose(hProcess);
+			hProcess = NULL;
+		}
+		
 	}
 
 	return FALSE;
@@ -338,9 +403,14 @@ BOOLEAN EptGetProcessName(
 
 
 //判断是否为加密进程
-BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
+BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data) 
+{
 
-	PAGED_CODE();
+	if (NULL == Data)
+	{
+		DbgPrint("[EptIsTargetProcess]->Data is NULL.\n");
+		return FALSE;
+	}
 
 	NTSTATUS Status;
 	char Buffer[PAGE_SIZE * sizeof(WCHAR) + sizeof(UNICODE_STRING)], Temp[260];
@@ -357,7 +427,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 
 	if (!EptGetProcessName(Data, ProcessName)) {
 
-		DbgPrint("EptGetProcessName failed.\n");
+		DbgPrint("[EptIsTargetProcess]->EptGetProcessName failed.\n");
 		return FALSE;
 	}
 
@@ -367,7 +437,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 
 	if (!NT_SUCCESS(Status)) {
 
-		DbgPrint("AnisProcessName RtlUnicodeStringToAnsiString failed.\n");
+		DbgPrint("[EptIsTargetProcess]->AnisProcessName RtlUnicodeStringToAnsiString failed. Status = %x\n", Status);
 		return FALSE;
 	}
 
@@ -404,7 +474,7 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 		if (strcmp(p, Temp) == 0) {
 
 			RtlFreeAnsiString(&AnisProcessName);
-			//DbgPrint("EptIsTargetProcess hit Process Name = %s.\n", p);
+			DbgPrint("[EptIsTargetProcess]->Process Name = %s.\n", p);
 
 			//如果是在PreCreate中调用EptIsTargetProcess
 			//CheckHash = TRUE，进入if
@@ -420,14 +490,20 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 					if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
 					{
 						if (ReadBuffer)
+						{
 							ExFreePool(ReadBuffer);
+							ReadBuffer = NULL;
+						}
 						CheckHash = FALSE;
 						return TRUE;
 					}
 					else
 					{
 						if (ReadBuffer)
+						{
 							ExFreePool(ReadBuffer);
+							ReadBuffer = NULL;
+						}
 						CheckHash = FALSE;
 						return FALSE;
 					}
@@ -444,8 +520,11 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 
 	}
 	
-
-	RtlFreeAnsiString(&AnisProcessName);
+	if (NULL != AnisProcessName.Buffer)
+	{
+		RtlFreeAnsiString(&AnisProcessName);
+		AnisProcessName.Buffer = NULL;
+	}
 
 	return FALSE;
 
@@ -453,7 +532,14 @@ BOOLEAN EptIsTargetProcess(PFLT_CALLBACK_DATA Data) {
 
 
 //判断文件扩展名
-BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
+BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data) 
+{
+
+	if (NULL == Data)
+	{
+		DbgPrint("[EptIsTargetExtension]->Data is NULL.\n");
+		return FALSE;
+	}
 
 	NTSTATUS Status;
 	PFLT_FILE_NAME_INFORMATION FileNameInfo;
@@ -470,7 +556,7 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 
 	if (!NT_SUCCESS(Status)) {
 
-		//DbgPrint("EptIsTargetExtension FltGetFileNameInformation failed.\n");
+		//DbgPrint("[EptIsTargetExtension]->FltGetFileNameInformation failed. Status = %x\n", Status);
 		return FALSE;
 	}
 
@@ -509,13 +595,26 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 			{
 				if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
 				{
-					FltReleaseFileNameInformation(FileNameInfo);
+					if (NULL != FileNameInfo)
+					{
+						FltReleaseFileNameInformation(FileNameInfo);
+						FileNameInfo = NULL;
+					}
 					//DbgPrint("[EptIsTargetExtension] Extension is same %ws.\n", Extension);
-					RtlFreeUnicodeString(&Extension);
+
+					if (NULL != Extension.Buffer)
+					{
+						RtlFreeUnicodeString(&Extension);
+						Extension.Buffer = NULL;
+					}
 					return TRUE;
 				}
 
-				RtlFreeUnicodeString(&Extension);
+				if (NULL != Extension.Buffer)
+				{
+					RtlFreeUnicodeString(&Extension);
+					Extension.Buffer = NULL;
+				}
 			}
 
 			//跳过逗号
@@ -526,7 +625,11 @@ BOOLEAN EptIsTargetExtension(PFLT_CALLBACK_DATA Data) {
 		pListEntry = pListEntry->Flink;
 	}
 
-
-	FltReleaseFileNameInformation(FileNameInfo);
+	if (NULL != FileNameInfo)
+	{
+		FltReleaseFileNameInformation(FileNameInfo);
+		FileNameInfo = NULL;
+	}
+	
 	return FALSE;
 }

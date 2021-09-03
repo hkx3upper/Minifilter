@@ -5,11 +5,24 @@
 #include "cryptography.h"
 
 
-FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags);
+FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN PVOID CompletionContext, IN FLT_POST_OPERATION_FLAGS Flags);
 
 
-BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID* CompletionContext)
+BOOLEAN PreWriteSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects, OUT PVOID* CompletionContext)
 {
+
+    if (NULL == Data)
+    {
+        DbgPrint("[PreWriteSwapBuffers]->Data is NULL.\n");
+        return FALSE;
+    }
+
+    if (NULL == FltObjects)
+    {
+        DbgPrint("[PreWriteSwapBuffers]->FltObjects is NULL.\n");
+        return FALSE;
+    }
+
 
     NTSTATUS Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
 
@@ -27,7 +40,7 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 
             OrigBuffer = MmGetSystemAddressForMdlSafe((*Data)->Iopb->Parameters.Write.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
             if (OrigBuffer == NULL) {
-                DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
+                DbgPrint("[PreWriteSwapBuffers]->MmGetSystemAddressForMdlSafe OrigBuffer failed!\n");
                 Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
                 leave;
             }
@@ -38,14 +51,18 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         }
 
         //获得加密后数据的大小
-        EptAesEncrypt(FltObjects, OrigBuffer, &WriteLength, TRUE);
-        //DbgPrint("WriteLength = %d.\n", WriteLength);
+        if (!EptAesEncrypt(FltObjects, OrigBuffer, &WriteLength, TRUE))
+        {
+            DbgPrint("[PreWriteSwapBuffers]->EptAesEncrypt get buffer encrypted size failed.\n");
+            return FALSE;
+        }
+        
 
         //获得WriteBuffer真正的大小，防止内存越界
         Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
 
         if (!NT_SUCCESS(Status)) {
-            DbgPrint("VolumeContext FltGetVolumeContext failed!.\n");
+            DbgPrint("[PreWriteSwapBuffers]->VolumeContext FltGetVolumeContext failed!. Status = %x\n", Status);
             Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
             leave;
         }
@@ -55,13 +72,17 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
             WriteLength = ROUND_TO_SIZE(WriteLength, VolumeContext->SectorSize);
         }
 
-        FltReleaseContext(VolumeContext);
-
+        if (NULL != VolumeContext)
+        {
+            FltReleaseContext(VolumeContext);
+            VolumeContext = NULL;
+        }
+        
 
         //为新WriteBuffer,MdlAddress分配暂存空间
         SwapWriteContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(SWAP_BUFFER_CONTEXT), SWAP_WRITE_CONTEXT_TAG);
         if (SwapWriteContext == NULL) {
-            DbgPrint("SwapWriteContext ExAllocatePoolWithTag failed!\n");
+            DbgPrint("[PreWriteSwapBuffers]->SwapWriteContext ExAllocatePoolWithTag failed!\n");
             Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
             leave;
         }
@@ -71,7 +92,7 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         //只需要为noncached IO分配内存，但这里简化
         NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, WriteLength, SWAP_WRITE_BUFFER_TAG);
         if (NewBuffer == NULL) {
-            DbgPrint("NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
+            DbgPrint("[PreWriteSwapBuffers]->NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
             Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
             leave;
         }
@@ -83,8 +104,8 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         if (FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION)) {
 
             NewMdl = IoAllocateMdl(NewBuffer, WriteLength, FALSE, FALSE, NULL);
-            if (NewMdl == NULL) {
-                DbgPrint("NewMDL IoAllocateMdl failed!\n");
+            if (NULL == NewMdl) {
+                DbgPrint("[PreWriteSwapBuffers]->NewMDL IoAllocateMdl failed!\n");
                 Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
                 leave;
             }
@@ -124,15 +145,15 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     *CompletionContext = SwapWriteContext;
     //加密函数
 
-    DbgPrint("PreWrite NewBuffer content = %s.\n", NewBuffer);
+    DbgPrint("[PreWriteSwapBuffers]->OrigBuffer content = %s.\n", NewBuffer);
 
-    //for (ULONG i = 0; i < WriteLength; i++)
-    //{
-    //    NewBuffer[i] ^= 0x77;
-    //}
     //这里WriteLength作为NewBuffer的大小传入，作为LengthReturned传出
-    EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE);
-    DbgPrint("PreWrite Encrypted content = %s.\n", NewBuffer);
+    if (!EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE))
+    {
+        DbgPrint("[PreWriteSwapBuffers]->EptAesEncrypt encrypte buffer failed.\n");
+    }
+
+    DbgPrint("[PreWriteSwapBuffers]->Encrypted content = %s.\n", NewBuffer);
 
 
     //cleanup
@@ -155,8 +176,20 @@ BOOLEAN PreWriteSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
 }
 
 
-BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID* CompletionContext) 
+BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects, OUT PVOID* CompletionContext) 
 {
+
+    if (NULL == Data)
+    {
+        DbgPrint("[PreReadSwapBuffers]->Data is NULL.\n");
+        return FALSE;
+    }
+
+    if (NULL == FltObjects)
+    {
+        DbgPrint("[PreReadSwapBuffers]->FltObjects is NULL.\n");
+        return FALSE;
+    }
 
     NTSTATUS Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
 
@@ -182,13 +215,17 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
         ReadLength = ROUND_TO_SIZE(ReadLength, VolumeContext->SectorSize);
     }
 
-    FltReleaseContext(VolumeContext);
+    if (NULL != VolumeContext)
+    {
+        FltReleaseContext(VolumeContext);
+        VolumeContext = NULL;
+    }
 
 
     SwapReadContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(SWAP_BUFFER_CONTEXT), SWAP_READ_CONTEXT_TAG);
     if (SwapReadContext == NULL)
     {
-        DbgPrint("SwapReadContext ExAllocatePoolWithTag failed!\n");
+        DbgPrint("[PreReadSwapBuffers]->SwapReadContext ExAllocatePoolWithTag failed!\n");
         return FALSE;
     }
 
@@ -198,8 +235,12 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
     NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, ReadLength, SWAP_READ_BUFFER_TAG);
     if (NewBuffer == NULL)
     {
-        DbgPrint("NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
-        ExFreePool(SwapReadContext);
+        DbgPrint("[PreReadSwapBuffers]->NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
+        if (NULL != SwapReadContext)
+        {
+            ExFreePool(SwapReadContext);
+            SwapReadContext = NULL;
+        }
         return FALSE;
     }
 
@@ -213,9 +254,18 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
         NewMdl = IoAllocateMdl(NewBuffer, ReadLength, FALSE, FALSE, NULL);
         if (NewMdl == NULL)
         {
-            DbgPrint("NewMDL IoAllocateMdl failed!\n");
-            ExFreePool(SwapReadContext);
-            FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, SWAP_READ_BUFFER_TAG);
+            DbgPrint("[PreReadSwapBuffers]->NewMDL IoAllocateMdl failed!\n");
+            if (NULL != SwapReadContext)
+            {
+                ExFreePool(SwapReadContext);
+                SwapReadContext = NULL;
+            }
+
+            if (NULL != NewBuffer)
+            {
+                FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, SWAP_READ_BUFFER_TAG);
+                NewBuffer = NULL;
+            }
             return FALSE;
         }
 
@@ -235,8 +285,26 @@ BOOLEAN PreReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltOb
 }
 
 
-BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags)
+BOOLEAN PostReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN PVOID CompletionContext, IN FLT_POST_OPERATION_FLAGS Flags)
 {
+
+    if (NULL == Data)
+    {
+        DbgPrint("[PostReadSwapBuffers]->Data is NULL.\n");
+        return FALSE;
+    }
+
+    if (NULL == FltObjects)
+    {
+        DbgPrint("[PostReadSwapBuffers]->FltObjects is NULL.\n");
+        return FALSE;
+    }
+
+    if (NULL == CompletionContext)
+    {
+        DbgPrint("[PostReadSwapBuffers]->CompletionContext is NULL.\n");
+        return FALSE;
+    }
 
     UNREFERENCED_PARAMETER(Flags);
 
@@ -252,7 +320,7 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         {
             (*Data)->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
             (*Data)->IoStatus.Information = 0;
-            DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
+            DbgPrint("[PostReadSwapBuffers]->OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
         }
     }
     else if(FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_SYSTEM_BUFFER) || FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
@@ -288,8 +356,25 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
     NewBuffer = SwapReadContext->NewBuffer;
     ReadLength = (ULONG)(*Data)->IoStatus.Information;
 
+    if (!EptAesDecrypt(NewBuffer, ReadLength))
+    {
+        DbgPrint("[PostReadSwapBuffers]->EptAesDecrypt Buffer failed!\n");
 
-    EptAesDecrypt(NewBuffer, ReadLength);
+        if (NULL != SwapReadContext->NewBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, SwapReadContext->NewBuffer, SWAP_READ_BUFFER_TAG);
+            SwapReadContext->NewBuffer = NULL;
+        }
+
+        if (NULL != SwapReadContext)
+        {
+            ExFreePool(SwapReadContext);
+            SwapReadContext = NULL;
+        }
+
+        return FALSE;
+    }
+   
 
 
 
@@ -304,20 +389,36 @@ BOOLEAN PostReadSwapBuffers(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltO
         (*Data)->IoStatus.Information = 0;
     }
 
-    if (SwapReadContext->NewBuffer != NULL)
+    if (NULL != SwapReadContext->NewBuffer)
+    {
         FltFreePoolAlignedWithTag(FltObjects->Instance, SwapReadContext->NewBuffer, SWAP_READ_BUFFER_TAG);
-
-
-    if (SwapReadContext != NULL) {
+        SwapReadContext->NewBuffer = NULL;
+    }
+       
+    if (NULL != SwapReadContext) 
+    {
         ExFreePool(SwapReadContext);
+        SwapReadContext = NULL;
     }
 
     return TRUE;
 }
 
 
-FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PVOID CompletionContext, FLT_POST_OPERATION_FLAGS Flags)
+FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN PVOID CompletionContext, IN FLT_POST_OPERATION_FLAGS Flags)
 {
+
+    if (NULL == Data)
+    {
+        DbgPrint("[PostReadSwapBuffersWhenSafe]->Data is NULL.\n");
+        return FALSE;
+    }
+
+    if (NULL == CompletionContext)
+    {
+        DbgPrint("[PostReadSwapBuffersWhenSafe]->CompletionContext is NULL.\n");
+        return FALSE;
+    }
 
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(Flags);
@@ -328,7 +429,7 @@ FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, 
     ULONG ReadLength;
     PSWAP_BUFFER_CONTEXT SwapReadContext = CompletionContext;
 
-    DbgPrint("PostReadSwapBuffersWhenSafe hit.\n");
+    DbgPrint("[PostReadSwapBuffersWhenSafe]->hit.\n");
 
     Status = FltLockUserBuffer(Data);
 
@@ -344,35 +445,51 @@ FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(PFLT_CALLBACK_DATA Data, 
         {
             Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
             Data->IoStatus.Information = 0;
-            DbgPrint("OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
+            DbgPrint("[PostReadSwapBuffersWhenSafe]->OrigBuffer MmGetSystemAddressForMdlSafe failed!\n");
         }
 
         //解密函数
         NewBuffer = SwapReadContext->NewBuffer;
         ReadLength = (ULONG)Data->IoStatus.Information;
 
-        DbgPrint("PostReadWhenSafe Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
+        DbgPrint("[PostReadSwapBuffersWhenSafe]->Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
+     
+        if (!EptAesDecrypt(NewBuffer, ReadLength))
+        {
+            DbgPrint("[PostReadSwapBuffersWhenSafe]->EptAesDecrypt Buffer failed!\n");
 
-        //for (ULONG i = 0; i < ReadLength; i++)
-        //{
-        //    NewBuffer[i] ^= 0x77;
-        //}
+            if (NULL != SwapReadContext->NewBuffer)
+            {
+                FltFreePoolAlignedWithTag(FltObjects->Instance, SwapReadContext->NewBuffer, SWAP_READ_BUFFER_TAG);
+                SwapReadContext->NewBuffer = NULL;
+            }
 
-        EptAesDecrypt(NewBuffer, ReadLength);
+            if (NULL != SwapReadContext)
+            {
+                ExFreePool(SwapReadContext);
+                SwapReadContext = NULL;
+            }
 
-        DbgPrint("PostReadWhenSafe Decrypted content = %s.\n", NewBuffer);
+            return FALSE;
+        }
+
+        DbgPrint("[PostReadSwapBuffersWhenSafe]Decrypted content = %s.\n", NewBuffer);
 
         if (SwapReadContext->NewBuffer)
             RtlCopyMemory(OrigBuffer, SwapReadContext->NewBuffer, Data->IoStatus.Information);
 
     }
 
-    if (SwapReadContext->NewBuffer != NULL)
+    if (NULL != SwapReadContext->NewBuffer)
+    {
         FltFreePoolAlignedWithTag(FltObjects->Instance, SwapReadContext->NewBuffer, SWAP_READ_BUFFER_TAG);
+        SwapReadContext->NewBuffer = NULL;
+    }
 
-
-    if (SwapReadContext != NULL) {
+    if (NULL != SwapReadContext)
+    {
         ExFreePool(SwapReadContext);
+        SwapReadContext = NULL;
     }
 
     DbgPrint("\n");

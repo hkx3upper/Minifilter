@@ -18,7 +18,7 @@ BOOLEAN EptUserInitCommPort()
 }
 
 
-BOOLEAN EptUserSendMessage(LPVOID lpInBuffer) 
+BOOLEAN EptUserSendMessage(IN LPVOID lpInBuffer) 
 {
 
 	HRESULT hResult;
@@ -98,7 +98,7 @@ int main()
 
 	if (!EptUserSendMessage(Buffer))
 	{
-		printf("EptUserSendMessage failed.\n");
+		printf("[EptUserSendMessage]->failed.\n");
 		return 0;
 	}
 

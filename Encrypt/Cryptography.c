@@ -24,7 +24,7 @@ BOOLEAN EptAesInithKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptAesEncrypt BCryptOpenAlgorithmProvider failed.\n");
+		DbgPrint("[EptAesInithKey]->BCryptOpenAlgorithmProvider failed. Status = %x\n", Status);
 		return FALSE;
 	}
 
@@ -32,7 +32,7 @@ BOOLEAN EptAesInithKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptAesEncrypt BCryptGetProperty failed.\n");
+		DbgPrint("[EptAesInithKey]->BCryptGetProperty failed. Status = %x\n", Status);
 		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
 		return FALSE;
 	}
@@ -41,7 +41,7 @@ BOOLEAN EptAesInithKey()
 
 	if (!AesInitVar.pbKeyObject)
 	{
-		DbgPrint("EptAesEncrypt ExAllocatePoolWithTag pbKeyObject failed.\n");
+		DbgPrint("[EptAesInithKey]->ExAllocatePoolWithTag pbKeyObject failed.\n");
 		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
 		return FALSE;
 	}
@@ -50,7 +50,7 @@ BOOLEAN EptAesInithKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptAesEncrypt BCryptSetProperty failed.\n");
+		DbgPrint("[EptAesInithKey]->BCryptSetProperty failed. Status = %x\n", Status);
 		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
 		ExFreePoolWithTag(AesInitVar.pbKeyObject, KEY_BOJECT_BUFFER);
 		return FALSE;
@@ -60,7 +60,7 @@ BOOLEAN EptAesInithKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptAesEncrypt BCryptGenerateSymmetricKey failed.\n");
+		DbgPrint("[EptAesInithKey]->BCryptGenerateSymmetricKey failed. Status = %x\n", Status);
 		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
 		ExFreePoolWithTag(AesInitVar.pbKeyObject, KEY_BOJECT_BUFFER);
 		return FALSE;
@@ -78,31 +78,46 @@ VOID EptAesCleanUp()
 		return;
 	}
 
-	if (AesInitVar.hAesAlg)
+	if (NULL != AesInitVar.hAesAlg)
 	{
 		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
+		AesInitVar.hAesAlg = NULL;
 	}
 
-	if (AesInitVar.hKey)
+	if (NULL != AesInitVar.hKey)
 	{
 		BCryptDestroyKey(AesInitVar.hKey);
+		AesInitVar.hKey = NULL;
 	}
 
-	if (AesInitVar.pbKeyObject)
+	if (NULL != AesInitVar.pbKeyObject)
 	{
 		ExFreePoolWithTag(AesInitVar.pbKeyObject, KEY_BOJECT_BUFFER);
+		AesInitVar.pbKeyObject = NULL;
 	}
 
 }
 
 
-BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* LengthReturned, BOOLEAN ReturnLengthFlag)
+BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag)
 {
 
 	UNREFERENCED_PARAMETER(FltObjects);
 
 	if (!AesInitVar.Flag)
 	{
+		return FALSE;
+	}
+
+	if (NULL == FltObjects)
+	{
+		DbgPrint("[EptAesEncrypt]->FltObjects is NULL.\n");
+		return FALSE;
+	}
+
+	if (NULL == Buffer)
+	{
+		DbgPrint("[EptAesEncrypt]->Buffer is NULL.\n");
 		return FALSE;
 	}
 
@@ -115,6 +130,11 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 		OrigLength = (ULONG)strlen((char*)Buffer);
 	}
 
+	if (OrigLength % AES_BLOCK_SIZE != 0)
+	{
+		OrigLength = (OrigLength / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+	}
+
 	//DbgPrint("OrigLength = %d.\n", OrigLength);
 
 
@@ -122,7 +142,7 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 
 	if (!TempBuffer)
 	{
-		DbgPrint("EptAesEncrypt ExAllocatePoolWithTag TempBuffer failed.\n");
+		DbgPrint("[EptAesEncrypt]->ExAllocatePoolWithTag TempBuffer failed.\n");
 		return FALSE;
 	}
 
@@ -140,14 +160,18 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 
 		if (!NT_SUCCESS(Status))
 		{
-			DbgPrint("EptAesEncrypt BCryptEncrypt failed.\n");
+			DbgPrint("[EptAesEncrypt]->BCryptEncrypt get encrypted buffer size failed. Status = %X.\n", Status);
 			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 			return FALSE;
 		}
 
-		DbgPrint("PreWrite AesEncrypt Length = %d LengthReturned = %d.\n", OrigLength, *LengthReturned);
+		DbgPrint("[EptAesEncrypt]->Buffer OrigLength = %d LengthReturned = %d.\n", OrigLength, *LengthReturned);
 
-		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+		if (NULL != TempBuffer)
+		{
+			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+			TempBuffer = NULL;
+		}
 		return TRUE;
 	}
 
@@ -156,17 +180,26 @@ BOOLEAN EptAesEncrypt(PCFLT_RELATED_OBJECTS FltObjects, PUCHAR Buffer, ULONG* Le
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("EptAesEncrypt BCryptEncrypt failed Status = %X.\n", Status);
-		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+		DbgPrint("[EptAesEncrypt]->BCryptEncrypt failed. Status = %X.\n", Status);
+		if (NULL != TempBuffer)
+		{
+			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+			TempBuffer = NULL;
+		}
 		return FALSE;
 	}
 
-	ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+	if (NULL != TempBuffer)
+	{
+		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+		TempBuffer = NULL;
+	}
+	
 	return TRUE;
 }
 
 
-BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
+BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 {
 
 	if (!AesInitVar.Flag)
@@ -174,10 +207,20 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 		return FALSE;
 	}
 
+	if (NULL == Buffer)
+	{
+		DbgPrint("[EptAesDecrypt]->Buffer is NULL.\n");
+		return FALSE;
+	}
+
+	if (0 == Length)
+	{
+		DbgPrint("[EptAesDecrypt]->Length is NULL.\n");
+		return FALSE;
+	}
+
 	NTSTATUS Status;
 	ULONG LengthReturned, BufferSize;
-
-	//DbgPrint("EptAesDecrypt Length = %d.\n", Length);
 
 
 	BufferSize = ROUND_TO_SIZE(Length, PAGE_SIZE);
@@ -186,7 +229,7 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 
 	if (!TempBuffer)
 	{
-		DbgPrint("EptAesDecrypt ExAllocatePoolWithTag TempBuffer failed.\n");
+		DbgPrint("[EptAesDecrypt]->ExAllocatePoolWithTag TempBuffer failed.\n");
 		return FALSE;
 	}
 
@@ -200,11 +243,19 @@ BOOLEAN EptAesDecrypt(PUCHAR Buffer, ULONG Length)
 		//STATUS_BUFFER_TOO_SMALL
 		//STATUS_INVALID_HANDLE
 		//STATUS_DATA_ERROR
-		DbgPrint("EptAesDecrypt BCryptDecrypt failed Status = %X.\n", Status);
-		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+		DbgPrint("[EptAesDecrypt]->BCryptDecrypt failed Status = %X.\n", Status);
+		if (NULL != TempBuffer)
+		{
+			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+			TempBuffer = NULL;
+		}
 		return FALSE;
 	}
 
-	ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+	if (NULL != TempBuffer)
+	{
+		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
+		TempBuffer = NULL;
+	}
 	return TRUE;
 }

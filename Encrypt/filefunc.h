@@ -7,10 +7,10 @@
 
 VOID EptBreakPointOnce();
 
-ULONG EptGetFileSize(PCFLT_RELATED_OBJECTS FltObjects);
+ULONG EptGetFileSize(IN PCFLT_RELATED_OBJECTS FltObjects);
 
-BOOLEAN EptIsTargetFile(PCFLT_RELATED_OBJECTS FltObjects);
+BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects);
 
-BOOLEAN EptWriteFileHeader(PFLT_CALLBACK_DATA* Data, PCFLT_RELATED_OBJECTS FltObjects);
+BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects);
 
-VOID EptFileCacheClear(PFILE_OBJECT pFileObject);
+VOID EptFileCacheClear(IN PFILE_OBJECT pFileObject);

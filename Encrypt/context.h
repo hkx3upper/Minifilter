@@ -26,8 +26,8 @@ typedef struct VOLUME_CONTEXT {
 
 #define STREAM_CONTEXT_TAG 'stCX'
 
-VOID EptSetFlagInContext(LONG* Flag, BOOLEAN Set);
+VOID EptSetFlagInContext(IN LONG* Flag, IN BOOLEAN Set);
 
-BOOLEAN EptCreateContext(PFLT_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType);
+BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType);
 
-BOOLEAN EptGetOrSetContext(PFLT_CALLBACK_DATA Data, PCFLT_RELATED_OBJECTS FltObjects, PEPT_STREAM_CONTEXT* CompletionContext, FLT_CONTEXT_TYPE ContextType);
+BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType);
