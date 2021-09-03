@@ -1,6 +1,8 @@
 # Minifilter
 参考《Windows内核安全与驱动开发》的加密解密Minifilter
 
+![Image text](https://raw.githubusercontent.com/hkx3upper/Minifilter/main/EncryptMinifilter.jpg)
+
 # 运行环境：
 
 Windows 10 x64
