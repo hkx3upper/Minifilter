@@ -33,13 +33,15 @@ Notepad.exe x64
 
 2021.08.29 解决链表中进程匹配问题，解决加密解密后EOF问题
 
+2021.09.03 做了代码优化
+
 # 发展方向：
 
 实现链表储存加密文件链表，并存储到本地
 
 接下来将会考虑双缓冲方面的问题（LayerFsd或者像Dokany一样FUSE用户空间）；
 
-考虑客户端安全性的问题：防止Process Hollowing，线程注入；
+考虑客户端安全性的问题
 
 # 未修复的bug：
 
@@ -118,7 +120,7 @@ if (!EptIsTargetExtension(Data))
 
 //这里不需要用FltSetInformationFile分配EOF大小
 
-//初始化事件（重要，必须等待FltWriteFile和FltReadFile完成）
+//初始化事件（重要）
 ```
 KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 ```
@@ -183,9 +185,6 @@ FltSetCallbackDataDirty(Data);
 //这里需要添加的是IRP_MJ_QUERY_INFORMATION  
 //因为之前加上了PAGE_SIZE大小的文件加密头；所以需要在PostQueryInformation中EOF减掉PAGE_SIZE,  
 //否则记事本每次保存都会在数据之后加上PAGE_SIZE的空白  
-//但是并不需要在PreSetInformation中设置任何的偏移  
-//应该是因为KeWaitForSingleObject保证了文件加密头的读写是在Notapad打开之前  
-//这样文件加密头的写入就像正常读写一样
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -309,7 +308,7 @@ if (ReturnLengthFlag)
 //If this flag is not specified, the size of the plaintext specified in the cbInput parameter 
 //must be a multiple of the algorithm's block size.
 
-Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, 0
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, NULL, 0, LengthReturned, 0)
 
     if (!NT_SUCCESS(Status))
     {
@@ -325,7 +324,7 @@ Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, N
 }
 
 
-Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, 0
+Status = BCryptEncrypt(AesInitVar.hKey, TempBuffer, OrigLength, NULL, NULL, 0, Buffer, *LengthReturned, LengthReturned, 0)
 
 if (!NT_SUCCESS(Status))
 {
