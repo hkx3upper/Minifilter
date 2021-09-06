@@ -362,7 +362,7 @@ PLIST_ENTRY pListEntry;
 
 while (!IsListEmpty(&ListHead))
 {
-    pListEntry = RemoveTailList(&ListHead);
+    pListEntry = ExInterlockedRemoveHeadList(&ListHead, &List_Spin_Lock);
 
     ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
     DbgPrint("Remove list node TargetProcessName = %s", ProcessRules->TargetProcessName);
@@ -386,8 +386,7 @@ RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
 
 RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
 
-//DbgPrint("InsertTailList ProcessRules = %s ProcessRules->TargetProcessName = %s.\n", ProcessRules, ProcessRules->TargetProcessName);
-InsertTailList(&ListHead, &ProcessRules->ListEntry);
+ExInterlockedInsertTailList(&ListHead, &ProcessRules->ListEntry, &List_Spin_Lock);
 
 break;
 ```
