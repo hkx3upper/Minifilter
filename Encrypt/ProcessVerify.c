@@ -1,8 +1,10 @@
 
 #include "processverify.h"
+#include <wdm.h>
 #include <bcrypt.h>
 
 LIST_ENTRY ListHead;
+KSPIN_LOCK List_Spin_Lock;
 BOOLEAN CheckHash;
 
 VOID EptListCleanUp()
@@ -12,7 +14,8 @@ VOID EptListCleanUp()
 
 	while (!IsListEmpty(&ListHead))
 	{
-		pListEntry = RemoveTailList(&ListHead);
+		
+		pListEntry = ExInterlockedRemoveHeadList(&ListHead, &List_Spin_Lock);
 
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
 		DbgPrint("[EptListCleanUp]->Remove list node TargetProcessName = %s.\n", ProcessRules->TargetProcessName);

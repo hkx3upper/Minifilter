@@ -88,7 +88,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
 
 			//DbgPrint("InsertTailList ProcessRules = %s ProcessRules->TargetProcessName = %s.\n", ProcessRules, ProcessRules->TargetProcessName);
-			InsertTailList(&ListHead, &ProcessRules->ListEntry);
+			ExInterlockedInsertTailList(&ListHead, &ProcessRules->ListEntry, &List_Spin_Lock);
 
 			break;
 		}

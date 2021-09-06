@@ -28,6 +28,7 @@ typedef struct EPT_PROCESS_RULES
 }EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
 
 extern LIST_ENTRY ListHead;
+extern KSPIN_LOCK List_Spin_Lock;
 
 extern BOOLEAN CheckHash;
 

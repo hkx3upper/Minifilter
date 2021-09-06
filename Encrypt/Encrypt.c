@@ -363,6 +363,7 @@ Return Value:
     pEptQueryInformationProcess = (EptQueryInformationProcess)(ULONG_PTR)MmGetSystemRoutineAddress(&FuncName);
 
     InitializeListHead(&ListHead);
+    KeInitializeSpinLock(&List_Spin_Lock);
 
     /*这里先初始化一个规则*/
     PEPT_PROCESS_RULES ProcessRules;
@@ -398,7 +399,8 @@ Return Value:
 
     }
 
-    InsertTailList(&ListHead, &ProcessRules->ListEntry);
+
+    ExInterlockedInsertTailList(&ListHead, &ProcessRules->ListEntry, &List_Spin_Lock);
 
 
     PEPT_PROCESS_RULES ProcessRules2;
@@ -416,9 +418,7 @@ Return Value:
     ProcessRules2->count = 1;
 
 
-    InsertTailList(&ListHead, &ProcessRules2->ListEntry);
-
-
+    ExInterlockedInsertTailList(&ListHead, &ProcessRules2->ListEntry, &List_Spin_Lock);
 
     //
     //  Register with FltMgr to tell it our callback routines
