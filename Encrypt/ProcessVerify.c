@@ -323,6 +323,12 @@ NTSTATUS EptReadProcessFile(
 		return Status;
 	}
 
+	if (NULL != FileHandle)
+	{
+		ZwClose(FileHandle);
+		FileHandle = NULL;
+	}
+
 	*Length = (ULONG)FileStandInfo.EndOfFile.QuadPart;
 	return Status;
 }
