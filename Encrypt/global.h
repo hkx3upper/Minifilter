@@ -49,6 +49,12 @@ EncryptInstanceQueryTeardown(
     _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
 );
 
+VOID
+EptContextCleanUp(
+    _In_ PFLT_CONTEXT Context,
+    _In_ FLT_CONTEXT_TYPE ContextType
+);
+
 FLT_PREOP_CALLBACK_STATUS
 EncryptPreCreate(
     _Inout_ PFLT_CALLBACK_DATA Data,

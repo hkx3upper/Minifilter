@@ -28,7 +28,9 @@ BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_
 
 	case FLT_STREAM_CONTEXT:
 	{
-		Status = FltAllocateContext(gFilterHandle, FLT_STREAM_CONTEXT, sizeof(EPT_STREAM_CONTEXT), NonPagedPool, &Context);
+		PEPT_STREAM_CONTEXT StreamContext = NULL;
+
+		Status = FltAllocateContext(gFilterHandle, FLT_STREAM_CONTEXT, sizeof(EPT_STREAM_CONTEXT), NonPagedPool, &StreamContext);
 
 		if (!NT_SUCCESS(Status)) {
 
@@ -36,9 +38,23 @@ BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_
 			return FALSE;
 		}
 
-		RtlZeroMemory(Context, sizeof(EPT_STREAM_CONTEXT));
+		RtlZeroMemory(StreamContext, sizeof(EPT_STREAM_CONTEXT));
 
-		break;
+		StreamContext->Resource = ExAllocatePoolWithTag(NonPagedPool, sizeof(ERESOURCE), FLT_STREAM_CONTEXT);
+
+		if (NULL == StreamContext->Resource)
+		{
+			DbgPrint("[EptCreateContext]->StreamContext->Resource ExAllocatePoolWithTag failed.\n");
+			FltReleaseContext(StreamContext);
+			return FALSE;
+		}
+
+		ExInitializeResourceLite(StreamContext->Resource);
+
+		*CompletionContext = StreamContext;
+
+		return TRUE;
+
 	}
 	case FLT_STREAMHANDLE_CONTEXT:
 	{
@@ -98,7 +114,7 @@ BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS 
 	}
 	else if (!NT_SUCCESS(Status)) {
 
-		DbgPrint("[EptGetOrSetContext]->FltGetStream/StreamHandle Context failed. Status = %x\n", Status);
+		//DbgPrint("[EptGetOrSetContext]->FltGetStream/StreamHandle Context failed. Status = %x\n", Status);
 		return FALSE;
 	}
 	else {

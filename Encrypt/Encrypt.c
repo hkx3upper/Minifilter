@@ -52,6 +52,7 @@ ULONG gTraceFlags = 0;
 #pragma alloc_text(PAGE, EncryptInstanceSetup)
 #pragma alloc_text(PAGE, EncryptInstanceTeardownStart)
 #pragma alloc_text(PAGE, EncryptInstanceTeardownComplete)
+#pragma alloc_text(PAGE, EptContextCleanUp)
 #endif
 
 //
@@ -62,14 +63,14 @@ CONST FLT_CONTEXT_REGISTRATION Context[] = {
 
     { FLT_VOLUME_CONTEXT,
       0,
-      NULL,
+      EptContextCleanUp,
       sizeof(VOLUME_CONTEXT),
       VOLUME_CONTEXT_TAG 
     },
 
     { FLT_STREAM_CONTEXT,
       0,
-      NULL,
+      EptContextCleanUp,
       sizeof(EPT_STREAM_CONTEXT),
       STREAM_CONTEXT_TAG 
     },
@@ -322,6 +323,38 @@ Return Value:
 }
 
 
+VOID
+EptContextCleanUp(
+    _In_ PFLT_CONTEXT context,
+    _In_ FLT_CONTEXT_TYPE ContextType
+)
+{
+    PEPT_STREAM_CONTEXT StreamContext = NULL;
+
+    switch (ContextType) {
+
+    case FLT_STREAM_CONTEXT:
+    {
+        StreamContext = (PEPT_STREAM_CONTEXT)context;
+
+        if (NULL != StreamContext->Resource) {
+
+            ExDeleteResourceLite(StreamContext->Resource);
+            ExFreePoolWithTag(StreamContext->Resource, FLT_STREAM_CONTEXT);
+
+            StreamContext->Resource = NULL;
+        }
+
+        break;
+    }
+    case FLT_STREAMHANDLE_CONTEXT:
+    {
+        break;
+    }
+
+    }
+}
+
 /*************************************************************************
     MiniFilter initialization and unload routines.
 *************************************************************************/
@@ -568,6 +601,8 @@ EncryptPostCreate(
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
+    PAGED_CODE();
+
     PEPT_STREAM_CONTEXT StreamContext;
 
     StreamContext = CompletionContext;
@@ -599,7 +634,12 @@ EncryptPostCreate(
 
 
     //到这里说明文件有加密标识头，设置StreamContext标识位
-    EptSetFlagInContext(&StreamContext->FlagExist, TRUE);
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+    StreamContext->FlagExist = 1;
+
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
     DbgPrint("[EncryptPostCreate]->Set StreamContext->FlagExist\n");
     
     if (NULL != StreamContext)
@@ -1086,6 +1126,9 @@ EncryptPreSetInformation(
 
     // 4096 -> 3->16      956
 
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+
     PVOID InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass)
@@ -1126,6 +1169,7 @@ EncryptPreSetInformation(
 
     }
 
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
     if (NULL != StreamContext)
     {
