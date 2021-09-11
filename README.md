@@ -37,7 +37,7 @@ Notepad.exe x64
 
 2021.09.03 做了代码优化
 
-2121.09.06 双向链表加了自旋锁，StreamContext加了PERESOURCE Resource结构体，保证多线程下数据的安全
+2121.09.06 双向链表加了自旋锁，StreamContext加了读写锁，保证多线程下数据的安全
 
 # 发展方向：
 
