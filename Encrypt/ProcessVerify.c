@@ -19,12 +19,6 @@ VOID EptListCleanUp()
 
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
 
-		if (ProcessRules->Resource != NULL)
-		{
-			ExDeleteResourceLite(ProcessRules->Resource);
-			ExFreePool(ProcessRules->Resource);
-			ProcessRules->Resource = NULL;
-		}
 		DbgPrint("[EptListCleanUp]->Remove list node TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
 
 		if (NULL != ProcessRules)
@@ -419,7 +413,7 @@ BOOLEAN EptGetProcessName(
 
 
 //判断是否为加密进程
-BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data) 
+NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 {
 
 	if (NULL == Data)
@@ -438,7 +432,7 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	ProcessName->Length = 0;
 	ProcessName->MaximumLength = PAGE_SIZE;
 
-	ANSI_STRING AnisProcessName;
+	ANSI_STRING AnisProcessName = { 0 };
 	CHAR* p;
 
 	if (!EptGetProcessName(Data, ProcessName)) {
@@ -475,6 +469,8 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	PEPT_PROCESS_RULES ProcessRules;
 	PLIST_ENTRY pListEntry = ListHead.Flink;
 
+	KIRQL OldIrql = KeAcquireSpinLockRaiseToDpc(&List_Spin_Lock);
+
 	while (pListEntry != &ListHead)
 	{
 
@@ -502,8 +498,6 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 				if (NT_SUCCESS(Status))
 				{
-					
-					ExEnterCriticalRegionAndAcquireResourceExclusive(ProcessRules->Resource);
 
 					if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
 					{
@@ -514,8 +508,7 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 						}
 						ProcessRules->IsCheckHash = FALSE;
 
-						ExReleaseResourceAndLeaveCriticalRegion(ProcessRules->Resource);
-						return TRUE;
+						Status = TRUE;
 					}
 					else
 					{
@@ -526,22 +519,22 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 						}
 						ProcessRules->IsCheckHash = FALSE;
 
-						ExReleaseResourceAndLeaveCriticalRegion(ProcessRules->Resource);
-						return FALSE;
+						Status =  FALSE;
 					}
-
-
 				}
-				return FALSE;
+				
+				Status = FALSE;
 			}
 
 
-			return TRUE;
+			Status = TRUE;
 		}
 
 		pListEntry = pListEntry->Flink;
 
 	}
+
+	KeReleaseSpinLockForDpc(&List_Spin_Lock, OldIrql);
 	
 	if (NULL != AnisProcessName.Buffer)
 	{
@@ -549,7 +542,7 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 		AnisProcessName.Buffer = NULL;
 	}
 
-	return FALSE;
+	return Status;
 
 }
 

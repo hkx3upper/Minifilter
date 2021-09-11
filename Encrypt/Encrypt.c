@@ -408,14 +408,6 @@ Return Value:
     }
     RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
 
-    ProcessRules->Resource = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
-    if (!ProcessRules->Resource)
-    {
-        DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules->Resource failed.\n");
-        return 0;
-    }
-    ExInitializeResourceLite(ProcessRules->Resource);
-
 
     RtlMoveMemory(ProcessRules->TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
     RtlMoveMemory(ProcessRules->TargetExtension, "txt,", sizeof("txt,"));

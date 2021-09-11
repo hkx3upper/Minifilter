@@ -25,7 +25,6 @@ typedef struct EPT_PROCESS_RULES
 	int count;
 	UCHAR Hash[32];
 	BOOLEAN IsCheckHash;
-	PERESOURCE Resource;
 
 }EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
 
@@ -37,6 +36,6 @@ VOID EptListCleanUp();
 
 NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer);
 
-BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data);
+NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data);
 
 BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data);
