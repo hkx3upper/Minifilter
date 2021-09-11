@@ -24,13 +24,14 @@ typedef struct EPT_PROCESS_RULES
 	char TargetExtension[100];
 	int count;
 	UCHAR Hash[32];
+	BOOLEAN IsCheckHash;
+	PERESOURCE Resource;
 
 }EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
 
 extern LIST_ENTRY ListHead;
 extern KSPIN_LOCK List_Spin_Lock;
 
-extern BOOLEAN CheckHash;
 
 VOID EptListCleanUp();
 

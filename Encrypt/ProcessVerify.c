@@ -5,7 +5,7 @@
 
 LIST_ENTRY ListHead;
 KSPIN_LOCK List_Spin_Lock;
-BOOLEAN CheckHash;
+
 
 VOID EptListCleanUp()
 {
@@ -18,6 +18,13 @@ VOID EptListCleanUp()
 		pListEntry = ExInterlockedRemoveHeadList(&ListHead, &List_Spin_Lock);
 
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
+
+		if (ProcessRules->Resource != NULL)
+		{
+			ExDeleteResourceLite(ProcessRules->Resource);
+			ExFreePool(ProcessRules->Resource);
+			ProcessRules->Resource = NULL;
+		}
 		DbgPrint("[EptListCleanUp]->Remove list node TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
 
 		if (NULL != ProcessRules)
@@ -487,7 +494,7 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 			//如果是在PreCreate中调用EptIsTargetProcess
 			//CheckHash = TRUE，进入if
-			if(CheckHash)
+			if(ProcessRules->IsCheckHash)
 			{
 				PUCHAR ReadBuffer = NULL;
 				ULONG Length;
@@ -496,6 +503,8 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 				if (NT_SUCCESS(Status))
 				{
 					
+					ExEnterCriticalRegionAndAcquireResourceExclusive(ProcessRules->Resource);
+
 					if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
 					{
 						if (ReadBuffer)
@@ -503,7 +512,9 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 							ExFreePool(ReadBuffer);
 							ReadBuffer = NULL;
 						}
-						CheckHash = FALSE;
+						ProcessRules->IsCheckHash = FALSE;
+
+						ExReleaseResourceAndLeaveCriticalRegion(ProcessRules->Resource);
 						return TRUE;
 					}
 					else
@@ -513,9 +524,12 @@ BOOLEAN EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 							ExFreePool(ReadBuffer);
 							ReadBuffer = NULL;
 						}
-						CheckHash = FALSE;
+						ProcessRules->IsCheckHash = FALSE;
+
+						ExReleaseResourceAndLeaveCriticalRegion(ProcessRules->Resource);
 						return FALSE;
 					}
+
 
 				}
 				return FALSE;

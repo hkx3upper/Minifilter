@@ -406,11 +406,21 @@ Return Value:
         DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules failed.\n");
         return 0;
     }
-
     RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
+
+    ProcessRules->Resource = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
+    if (!ProcessRules->Resource)
+    {
+        DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules->Resource failed.\n");
+        return 0;
+    }
+    ExInitializeResourceLite(ProcessRules->Resource);
+
+
     RtlMoveMemory(ProcessRules->TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
     RtlMoveMemory(ProcessRules->TargetExtension, "txt,", sizeof("txt,"));
     ProcessRules->count = 1;
+    ProcessRules->IsCheckHash = FALSE;
 
     ULONGLONG Hash[4];
     Hash[0] = 0xa28438e1388f272a;
@@ -434,24 +444,6 @@ Return Value:
 
 
     ExInterlockedInsertTailList(&ListHead, &ProcessRules->ListEntry, &List_Spin_Lock);
-
-
-    PEPT_PROCESS_RULES ProcessRules2;
-
-    ProcessRules2 = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
-    if (!ProcessRules2)
-    {
-        DbgPrint("[DriverEntry]->ExAllocatePoolWithTag ProcessRules2 failed.\n");
-        return 0;
-    }
-
-    RtlZeroMemory(ProcessRules2, sizeof(EPT_PROCESS_RULES));
-    RtlMoveMemory(ProcessRules2->TargetProcessName, "notepad++.exe", sizeof("notepad++.exe"));
-    RtlMoveMemory(ProcessRules2->TargetExtension, "txt,", sizeof("txt,"));
-    ProcessRules2->count = 1;
-
-
-    ExInterlockedInsertTailList(&ListHead, &ProcessRules2->ListEntry, &List_Spin_Lock);
 
     //
     //  Register with FltMgr to tell it our callback routines
@@ -569,7 +561,6 @@ EncryptPreCreate(
     }
 
     //只要在PreCreate中检查Hash就可以了
-    CheckHash = FALSE;
     if (!EptIsTargetProcess(Data)) 
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
