@@ -936,6 +936,9 @@ EncryptPostQueryInformation(
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(StreamContext->Resource, TRUE);
+
     if (StreamContext->FileSize > 0 &&(StreamContext->FileSize % AES_BLOCK_SIZE != 0))
     {
         FileOffset = (StreamContext->FileSize / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE - StreamContext->FileSize;
@@ -944,6 +947,9 @@ EncryptPostQueryInformation(
     {
         FileOffset = 0;
     }
+
+    ExReleaseResourceLite(StreamContext->Resource);
+    KeLeaveCriticalRegion();
 
     DbgPrint("[EncryptPostQueryInformation]->FileOffset = %d.\n", FileOffset);
 
