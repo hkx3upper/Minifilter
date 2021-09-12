@@ -469,7 +469,6 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	PEPT_PROCESS_RULES ProcessRules;
 	PLIST_ENTRY pListEntry = ListHead.Flink;
 
-	KIRQL OldIrql = KeAcquireSpinLockRaiseToDpc(&List_Spin_Lock);
 
 	while (pListEntry != &ListHead)
 	{
@@ -488,7 +487,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 			RtlFreeAnsiString(&AnisProcessName);
 			DbgPrint("[EptIsTargetProcess]->Process Name = %s.\n", p);
 
-			//如果是在PreCreate中调用EptIsTargetProcess
+			
 			//CheckHash = TRUE，进入if
 			if(ProcessRules->IsCheckHash)
 			{
@@ -506,7 +505,6 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 							ExFreePool(ReadBuffer);
 							ReadBuffer = NULL;
 						}
-						ProcessRules->IsCheckHash = FALSE;
 
 						Status = TRUE;
 					}
@@ -517,8 +515,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 							ExFreePool(ReadBuffer);
 							ReadBuffer = NULL;
 						}
-						ProcessRules->IsCheckHash = FALSE;
-
+						
 						Status =  FALSE;
 					}
 				}
@@ -534,7 +531,6 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 	}
 
-	KeReleaseSpinLockForDpc(&List_Spin_Lock, OldIrql);
 	
 	if (NULL != AnisProcessName.Buffer)
 	{
