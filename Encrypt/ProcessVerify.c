@@ -5,12 +5,15 @@
 
 LIST_ENTRY ListHead;
 KSPIN_LOCK List_Spin_Lock;
+ERESOURCE List_Resource;
 
 
 VOID EptListCleanUp()
 {
 	PEPT_PROCESS_RULES ProcessRules;
 	PLIST_ENTRY pListEntry;
+
+	ExDeleteResourceLite(&List_Resource);
 
 	while (!IsListEmpty(&ListHead))
 	{
@@ -469,6 +472,8 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	PEPT_PROCESS_RULES ProcessRules;
 	PLIST_ENTRY pListEntry = ListHead.Flink;
 
+	KeEnterCriticalRegion();
+	ExAcquireResourceSharedLite(&List_Resource, TRUE);
 
 	while (pListEntry != &ListHead)
 	{
@@ -531,6 +536,8 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 	}
 
+	ExReleaseResourceLite(&List_Resource);
+	KeLeaveCriticalRegion();
 	
 	if (NULL != AnisProcessName.Buffer)
 	{
@@ -579,6 +586,9 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 	PEPT_PROCESS_RULES ProcessRules;
 	PLIST_ENTRY pListEntry = ListHead.Flink;
 
+	KeEnterCriticalRegion();
+	ExAcquireResourceSharedLite(&List_Resource, TRUE);
+
 	while (pListEntry != &ListHead)
 	{
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
@@ -619,6 +629,9 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 						RtlFreeUnicodeString(&Extension);
 						Extension.Buffer = NULL;
 					}
+
+					ExReleaseResourceLite(&List_Resource);
+					KeLeaveCriticalRegion();
 					return TRUE;
 				}
 
@@ -636,6 +649,9 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 
 		pListEntry = pListEntry->Flink;
 	}
+
+	ExReleaseResourceLite(&List_Resource);
+	KeLeaveCriticalRegion();
 
 	if (NULL != FileNameInfo)
 	{

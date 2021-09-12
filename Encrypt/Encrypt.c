@@ -397,6 +397,7 @@ Return Value:
 
     InitializeListHead(&ListHead);
     KeInitializeSpinLock(&List_Spin_Lock);
+    ExInitializeResourceLite(&List_Resource);
 
     /*这里先初始化一个规则*/
     PEPT_PROCESS_RULES ProcessRules;

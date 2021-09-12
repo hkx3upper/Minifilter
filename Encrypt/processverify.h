@@ -30,6 +30,7 @@ typedef struct EPT_PROCESS_RULES
 
 extern LIST_ENTRY ListHead;
 extern KSPIN_LOCK List_Spin_Lock;
+extern ERESOURCE List_Resource;
 
 
 VOID EptListCleanUp();
