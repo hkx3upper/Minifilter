@@ -6,6 +6,9 @@
 #define PROCESS_RULES_HASH_TAG 'prHT'
 #define PROCESS_FILE_BUFFER_TAG 'pfBT'
 
+#define EPT_STATUS_TARGET_MATCH			1
+#define EPT_STATUS_TARGET_DONT_MATCH	0
+
 typedef NTSTATUS(*EptQueryInformationProcess) (
 	_In_      HANDLE,
 	_In_      PROCESSINFOCLASS,
@@ -39,4 +42,4 @@ NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDig
 
 NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data);
 
-BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data);
+NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data);

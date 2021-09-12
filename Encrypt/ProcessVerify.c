@@ -422,7 +422,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	if (NULL == Data)
 	{
 		DbgPrint("[EptIsTargetProcess]->Data is NULL.\n");
-		return FALSE;
+		return STATUS_INVALID_PARAMETER;
 	}
 
 	NTSTATUS Status;
@@ -451,7 +451,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	if (!NT_SUCCESS(Status)) {
 
 		DbgPrint("[EptIsTargetProcess]->AnisProcessName RtlUnicodeStringToAnsiString failed. Status = %x\n", Status);
-		return FALSE;
+		return Status;
 	}
 
 
@@ -500,36 +500,34 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 				ULONG Length;
 				Status = EptReadProcessFile(*ProcessName, &ReadBuffer, &Length);
 
-				if (NT_SUCCESS(Status))
+				if (!NT_SUCCESS(Status))
 				{
-
-					if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
-					{
-						if (ReadBuffer)
-						{
-							ExFreePool(ReadBuffer);
-							ReadBuffer = NULL;
-						}
-
-						Status = TRUE;
-					}
-					else
-					{
-						if (ReadBuffer)
-						{
-							ExFreePool(ReadBuffer);
-							ReadBuffer = NULL;
-						}
-						
-						Status =  FALSE;
-					}
+					DbgPrint("[EptIsTargetProcess]->EptReadProcessFile failed. error code = %x\n", Status);
+					break;
 				}
-				
-				Status = FALSE;
+
+				if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
+				{
+					Status = EPT_STATUS_TARGET_MATCH;
+				}
+				else
+				{						
+					Status = EPT_STATUS_TARGET_DONT_MATCH;
+				}
+
+				if (ReadBuffer != NULL)
+				{
+					ExFreePool(ReadBuffer);
+					ReadBuffer = NULL;
+				}
 			}
+			else
+			{
+				Status = EPT_STATUS_TARGET_MATCH;
+			}	
 
-
-			Status = TRUE;
+			break;
+			
 		}
 
 		pListEntry = pListEntry->Flink;
@@ -551,13 +549,13 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 
 //判断文件扩展名
-BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data) 
+NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 {
 
 	if (NULL == Data)
 	{
 		DbgPrint("[EptIsTargetExtension]->Data is NULL.\n");
-		return FALSE;
+		return STATUS_INVALID_PARAMETER;
 	}
 
 	NTSTATUS Status;
@@ -576,7 +574,7 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 	if (!NT_SUCCESS(Status)) {
 
 		//DbgPrint("[EptIsTargetExtension]->FltGetFileNameInformation failed. Status = %x\n", Status);
-		return FALSE;
+		return Status;
 	}
 
 	FltParseFileNameInformation(FileNameInfo);
@@ -595,13 +593,13 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 
 		lpExtension = ProcessRules->TargetExtension;
 
-		//将后缀分割开并比较
+		//将后缀按','分割开并比较
 		for (int i = 0; i < ProcessRules->count; i++)
 		{
 			memset(TempExtension, 0, sizeof(TempExtension));
 			count = 0;
 
-			while (strncmp(lpExtension, ",", 1))
+			while (strncmp(lpExtension, ",", 1) != 0)
 			{
 				TempExtension[count++] = *lpExtension;
 				//DbgPrint("lpExtension = %s.\n", lpExtension);
@@ -617,12 +615,9 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 			{
 				if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
 				{
-					if (NULL != FileNameInfo)
-					{
-						FltReleaseFileNameInformation(FileNameInfo);
-						FileNameInfo = NULL;
-					}
-					//DbgPrint("[EptIsTargetExtension] Extension is same %ws.\n", Extension);
+					//DbgPrint("[EptIsTargetExtension] Extension is same %ws.\n", Extension.Buffer);
+
+					Status = EPT_STATUS_TARGET_MATCH;
 
 					if (NULL != Extension.Buffer)
 					{
@@ -630,11 +625,13 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 						Extension.Buffer = NULL;
 					}
 
-					ExReleaseResourceLite(&List_Resource);
-					KeLeaveCriticalRegion();
-					return TRUE;
+					break;
 				}
-
+				else
+				{
+					Status = EPT_STATUS_TARGET_DONT_MATCH;
+				}
+				
 				if (NULL != Extension.Buffer)
 				{
 					RtlFreeUnicodeString(&Extension);
@@ -653,11 +650,12 @@ BOOLEAN EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 	ExReleaseResourceLite(&List_Resource);
 	KeLeaveCriticalRegion();
 
+
 	if (NULL != FileNameInfo)
 	{
 		FltReleaseFileNameInformation(FileNameInfo);
 		FileNameInfo = NULL;
 	}
 	
-	return FALSE;
+	return Status;
 }
