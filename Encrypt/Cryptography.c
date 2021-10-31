@@ -99,7 +99,7 @@ VOID EptAesCleanUp()
 }
 
 
-BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag)
+BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag)
 {
 
 	UNREFERENCED_PARAMETER(FltObjects);
@@ -122,13 +122,8 @@ BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer,
 	}
 
 	NTSTATUS Status;
-	ULONG OrigLength = EptGetFileSize(FltObjects) - FILE_FLAG_SIZE;
-	if (OrigLength <= 0)
-	{
-		//这里如果FltReadFile，FltWriteFile不使用KeWaitForSingleObject，或者ReadLength != FILE_FLAG_SIZE，
-		//都会导致FltQueryInformationFile查询到的EndOfFile等于去掉FILE_FLAG_SIZE的大小，这里只是fail-safe
-		OrigLength = (ULONG)strlen((char*)Buffer);
-	}
+	ULONG OrigLength = (ULONG)strlen((PCHAR)Buffer);
+
 
 	if (OrigLength % AES_BLOCK_SIZE != 0)
 	{

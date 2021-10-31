@@ -70,15 +70,15 @@ int main()
 	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
 	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
 
-	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad++.exe", sizeof("notepad++.exe"));
-	RtlMoveMemory(ProcessRules.TargetExtension, "txt,", sizeof("txt,"));
-	ProcessRules.count = 1;
+	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
+	RtlMoveMemory(ProcessRules.TargetExtension, "txt,c,", sizeof("txt,c,"));
+	ProcessRules.count = 2;
 
 	ULONGLONG Hash[4];
-	Hash[0] = 0x822dbe60421ceaf2;
-	Hash[1] = 0x53bd44b0a7d5ac19;
-	Hash[2] = 0xaae4d6ba789e816c;
-	Hash[3] = 0x2eb962fb06cea78c;
+	Hash[0] = 0xa28438e1388f272a;
+	Hash[1] = 0x52559536d99d65ba;
+	Hash[2] = 0x15b1a8288be1200e;
+	Hash[3] = 0x249851fdf7ee6c7e;
 
 	ULONGLONG TempHash;
 	RtlZeroMemory(ProcessRules.Hash, sizeof(ProcessRules.Hash));

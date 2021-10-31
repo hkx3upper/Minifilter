@@ -1,6 +1,7 @@
 
 #include "commport.h"
 #include "processverify.h"
+#include "linkedList.h"
 
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
@@ -47,6 +48,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 	PUCHAR Buffer;
 	EPT_MESSAGE_HEADER MessageHeader;
+	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
 	if (InputBuffer != NULL)
 	{
@@ -70,7 +72,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			DbgPrint("%s", (Buffer + sizeof(EPT_MESSAGE_HEADER)));
 			break;
 		}
-		case 2:
+		case EPT_INSERT_PROCESS_RULES:
 		{
 			//DbgPrint("%s", (Buffer + sizeof(EPT_MESSAGE_HEADER)));
 
@@ -87,8 +89,48 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 			RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
 
-			//DbgPrint("InsertTailList ProcessRules = %s ProcessRules->TargetProcessName = %s.\n", ProcessRules, ProcessRules->TargetProcessName);
-			ExInterlockedInsertTailList(&ListHead, &ProcessRules->ListEntry, &List_Spin_Lock);
+			EPT_PROCESS_RULES TempPR = { 0 };
+			RtlMoveMemory(TempPR.TargetProcessName, ProcessRules->TargetProcessName, strlen(ProcessRules->TargetProcessName));
+			Status = EptIsPRInLinkedList(&TempPR);
+
+			//把链表指针清零，为之后的比较
+			RtlZeroMemory(&TempPR, sizeof(LIST_ENTRY));
+
+			if (EPT_STATUS_TARGET_MATCH == Status)
+			{
+				if (!strncmp(ProcessRules->TargetExtension, TempPR.TargetExtension, sizeof(ProcessRules->TargetExtension)) &&
+					!strncmp((PCHAR)ProcessRules->Hash, (PCHAR)TempPR.Hash, sizeof(ProcessRules->Hash)) &&
+					ProcessRules->IsCheckHash == TempPR.IsCheckHash)
+				{
+					DbgPrint("MessageNotifyCallback->%s PR already exsits.\n", ProcessRules->TargetProcessName);
+
+					if (NULL != ProcessRules)
+					{
+						ExFreePoolWithTag(ProcessRules, PROCESS_RULES_BUFFER_TAG);
+						ProcessRules = NULL;
+					}
+					
+					break;
+				}
+				else
+				{
+					Status = EptReplacePRInLinkedList(*ProcessRules);
+
+					DbgPrint("MessageNotifyCallback->EptReplacePRInLinkedList %s.\n", ProcessRules->TargetProcessName);
+
+					if (STATUS_SUCCESS != Status)
+					{
+						DbgPrint("MessageNotifyCallback->EptReplacePRInLinkedList %s failed.\n", ProcessRules->TargetProcessName);
+						return Status;
+					}
+
+					break;
+				}
+
+			}
+
+			DbgPrint("MessageNotifyCallback->InsertTailList ProcessRules->TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
+			ExInterlockedInsertTailList(&ProcessRulesListHead, &ProcessRules->ListEntry, &ProcessRulesListSpinLock);
 
 			break;
 		}

@@ -67,8 +67,8 @@ BOOLEAN PreWriteSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
             leave;
         }
 
-        if (FlagOn((*Data)->Iopb->IrpFlags, IRP_NOCACHE)) {
-
+        if (FlagOn((*Data)->Iopb->IrpFlags, IRP_NOCACHE)) 
+        {
             WriteLength = ROUND_TO_SIZE(WriteLength, VolumeContext->SectorSize);
         }
 

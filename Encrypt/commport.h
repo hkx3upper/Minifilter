@@ -6,6 +6,8 @@ BOOLEAN EptInitCommPort();
 
 VOID EptCloseCommPort();
 
+#define EPT_INSERT_PROCESS_RULES 2
+
 typedef struct EPT_MESSAGE_HEADER
 {
 	int Command;

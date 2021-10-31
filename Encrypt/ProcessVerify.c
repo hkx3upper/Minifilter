@@ -1,38 +1,9 @@
 
 #include "processverify.h"
+#include "linkedList.h"
 #include <wdm.h>
 #include <bcrypt.h>
 
-LIST_ENTRY ListHead;
-KSPIN_LOCK List_Spin_Lock;
-ERESOURCE List_Resource;
-
-
-VOID EptListCleanUp()
-{
-	PEPT_PROCESS_RULES ProcessRules;
-	PLIST_ENTRY pListEntry;
-
-	ExDeleteResourceLite(&List_Resource);
-
-	while (!IsListEmpty(&ListHead))
-	{
-		
-		pListEntry = ExInterlockedRemoveHeadList(&ListHead, &List_Spin_Lock);
-
-		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
-
-		DbgPrint("[EptListCleanUp]->Remove list node TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
-
-		if (NULL != ProcessRules)
-		{
-			ExFreePool(ProcessRules);
-			ProcessRules = NULL;
-		}
-		
-	}
-
-}
 
 
 NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer)
@@ -469,73 +440,48 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	//DbgPrint("[EptIsTargetProcess]->ProcessName = %s.\n", p);
 
 	//遍历链表，取出ProcessName，并比较
-	PEPT_PROCESS_RULES ProcessRules;
-	PLIST_ENTRY pListEntry = ListHead.Flink;
-
-	KeEnterCriticalRegion();
-	ExAcquireResourceSharedLite(&List_Resource, TRUE);
-
-	while (pListEntry != &ListHead)
-	{
-
-		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
-
-		//大写便于比较
-		RtlZeroMemory(Temp, 260);
-		RtlMoveMemory(Temp, ProcessRules->TargetProcessName, strlen(ProcessRules->TargetProcessName));
-
-		RtlMoveMemory(AnisProcessName.Buffer, _strupr(AnisProcessName.Buffer), strlen(AnisProcessName.Buffer));
-		RtlMoveMemory(Temp, _strupr(Temp), strlen(Temp));
-
-		if (strcmp(p, Temp) == 0) {
-
-			RtlFreeAnsiString(&AnisProcessName);
-			DbgPrint("[EptIsTargetProcess]->Process Name = %s.\n", p);
-
+	EPT_PROCESS_RULES ProcessRules = { 0 };
+	RtlMoveMemory(ProcessRules.TargetProcessName, p, strlen(p));
+	
+	Status = EptIsPRInLinkedList(&ProcessRules);
 			
-			//CheckHash = TRUE，进入if
-			if(ProcessRules->IsCheckHash)
+	if (EPT_STATUS_TARGET_MATCH == Status)
+	{
+		//CheckHash = TRUE，进入if
+		if (ProcessRules.IsCheckHash)
+		{
+			PUCHAR ReadBuffer = NULL;
+			ULONG Length;
+			Status = EptReadProcessFile(*ProcessName, &ReadBuffer, &Length);
+
+			if (!NT_SUCCESS(Status))
 			{
-				PUCHAR ReadBuffer = NULL;
-				ULONG Length;
-				Status = EptReadProcessFile(*ProcessName, &ReadBuffer, &Length);
+				DbgPrint("[EptIsTargetProcess]->EptReadProcessFile failed. error code = %x\n", Status);
+				return Status;
+			}
 
-				if (!NT_SUCCESS(Status))
-				{
-					DbgPrint("[EptIsTargetProcess]->EptReadProcessFile failed. error code = %x\n", Status);
-					break;
-				}
-
-				if (EptVerifyHash(ReadBuffer, Length, ProcessRules->Hash))
-				{
-					Status = EPT_STATUS_TARGET_MATCH;
-				}
-				else
-				{						
-					Status = EPT_STATUS_TARGET_DONT_MATCH;
-				}
-
-				if (ReadBuffer != NULL)
-				{
-					ExFreePool(ReadBuffer);
-					ReadBuffer = NULL;
-				}
+			if (EptVerifyHash(ReadBuffer, Length, ProcessRules.Hash))
+			{
+				Status = EPT_STATUS_TARGET_MATCH;
 			}
 			else
 			{
-				Status = EPT_STATUS_TARGET_MATCH;
-			}	
+				Status = EPT_STATUS_TARGET_DONT_MATCH;
+			}
 
-			break;
-			
+			if (ReadBuffer != NULL)
+			{
+				ExFreePool(ReadBuffer);
+				ReadBuffer = NULL;
+			}
 		}
-
-		pListEntry = pListEntry->Flink;
-
+		else
+		{
+			Status = EPT_STATUS_TARGET_MATCH;
+		}
 	}
 
-	ExReleaseResourceLite(&List_Resource);
-	KeLeaveCriticalRegion();
+
 	
 	if (NULL != AnisProcessName.Buffer)
 	{
@@ -582,12 +528,12 @@ NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 
 	//遍历链表，取出Extension，并比较
 	PEPT_PROCESS_RULES ProcessRules;
-	PLIST_ENTRY pListEntry = ListHead.Flink;
+	PLIST_ENTRY pListEntry = ProcessRulesListHead.Flink;
 
 	KeEnterCriticalRegion();
-	ExAcquireResourceSharedLite(&List_Resource, TRUE);
+	ExAcquireResourceSharedLite(&ProcessRulesListResource, TRUE);
 
-	while (pListEntry != &ListHead)
+	while (pListEntry != &ProcessRulesListHead)
 	{
 		ProcessRules = CONTAINING_RECORD(pListEntry, EPT_PROCESS_RULES, ListEntry);
 
@@ -647,7 +593,7 @@ NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 		pListEntry = pListEntry->Flink;
 	}
 
-	ExReleaseResourceLite(&List_Resource);
+	ExReleaseResourceLite(&ProcessRulesListResource);
 	KeLeaveCriticalRegion();
 
 

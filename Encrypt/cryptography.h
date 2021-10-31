@@ -23,6 +23,6 @@ BOOLEAN EptAesInithKey();
 
 VOID EptAesCleanUp();
 
-BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag);
+BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag);
 
 BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length);

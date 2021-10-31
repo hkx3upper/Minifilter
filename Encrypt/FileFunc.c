@@ -2,6 +2,8 @@
 
 #include "filefunc.h"
 #include "commport.h"
+#include "cryptography.h"
+
 
 ULONG BreakPointFlag = 1;
 
@@ -60,6 +62,7 @@ VOID EptReadWriteCallbackRoutine(
 }
 
 
+//获得文件大小，非重入
 ULONG EptGetFileSize(IN PCFLT_RELATED_OBJECTS FltObjects)
 {
     ASSERT(FltObjects != NULL);
@@ -74,7 +77,7 @@ ULONG EptGetFileSize(IN PCFLT_RELATED_OBJECTS FltObjects)
 
 
 //判断是否为带有加密标记的文件
-BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects) 
+NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects) 
 {
     ASSERT(FltObjects != NULL);
 
@@ -117,7 +120,7 @@ BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 	Length = ROUND_TO_SIZE(Length, VolumeProps.SectorSize);
 
 	//为FltReadFile分配内存，之后在Buffer中查找Flag
-	ReadBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, Length, 'itRB');
+	ReadBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, PagedPool, Length, 'itRB');
 
 	if (!ReadBuffer) {
 
@@ -176,7 +179,7 @@ BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
             ReadBuffer = NULL;
         }
 		DbgPrint("[EptIsTargetFile]->TargetFile is match.\n");
-		return TRUE;
+		return EPT_ALREADY_HAVE_ENCRYPT_HEADER;
 	}
 
     if (NULL != Volume)
@@ -195,13 +198,13 @@ BOOLEAN EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 
 
 //如果是新建的文件，且有写入数据的倾向，写入加密标记头
-BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects) {
+NTSTATUS EptWriteEncryptHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects) {
 
     ASSERT(Data != NULL);
     ASSERT(FltObjects != NULL);
 
 	NTSTATUS Status;
-	FILE_STANDARD_INFORMATION StandardInfo;
+    FILE_STANDARD_INFORMATION StandardInfo = { 0 };
 
 	PFLT_VOLUME Volume;
 	FLT_VOLUME_PROPERTIES VolumeProps;
@@ -212,48 +215,46 @@ BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
 	LARGE_INTEGER ByteOffset;
 	ULONG Length, LengthReturned;
 
-	//查询文件大小
+
+	////查询文件大小
 	Status = FltQueryInformationFile(FltObjects->Instance, FltObjects->FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
 
-	if (!NT_SUCCESS(Status) || Status == STATUS_VOLUME_DISMOUNTED) {
-
-		DbgPrint("[EptWriteFileHeader]->FltQueryInformationFile failed. Status = %x\n", Status);
-		return FALSE;
+	if (!NT_SUCCESS(Status) || Status == STATUS_VOLUME_DISMOUNTED) 
+    {
+		//DbgPrint("[EptWriteFileHeader]->FltQueryInformationFile failed. Status = %x\n", Status);
+		return Status;
 	}
 
-	//DbgPrint("(*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess = %x.\n", (*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess);
+    //根据FltWriteFile对于Length的要求，Length必须是扇区大小的整数倍
+    Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
+
+    if (!NT_SUCCESS(Status)) {
+
+        DbgPrint("[EptWriteFileHeader]->FltGetVolumeFromInstance failed. Status = %x\n", Status);
+        return Status;
+    }
+
+    Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &Length);
+
+    if (NULL != Volume)
+    {
+        FltObjectDereference(Volume);
+        Volume = NULL;
+    }
+
 
 	//分配文件头FILE_FLAG_SIZE大小，写入文件flag
 	if (StandardInfo.EndOfFile.QuadPart == 0
 		&& ((*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))) {
 
-		
-		//根据FltWriteFile对于Length的要求，Length必须是扇区大小的整数倍
-		Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
-
-		if (!NT_SUCCESS(Status)) {
-
-			DbgPrint("[EptWriteFileHeader]->FltGetVolumeFromInstance failed. Status = %x\n", Status);
-			return FALSE;
-		}
-
-		Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &Length);
-
-		Length = max(sizeof(FILE_FLAG), FILE_FLAG_SIZE);
-		Length = ROUND_TO_SIZE(Length, VolumeProps.SectorSize);
-
-        if (NULL != Volume)
-        {
-            FltObjectDereference(Volume);
-            Volume = NULL;
-        }
-
+        Length = max(sizeof(FILE_FLAG), FILE_FLAG_SIZE);
+        Length = ROUND_TO_SIZE(Length, VolumeProps.SectorSize);
 
 		Buffer = ExAllocatePoolWithTag(NonPagedPool, Length, 'wiBF');
 		if (!Buffer) {
 
-			DbgPrint("[EptWriteFileHeader]->ExAllocatePoolWithTag Buffer failed.\n");
-			return FALSE;
+			DbgPrint("EptWriteEncryptHeader->ExAllocatePoolWithTag Buffer failed.\n");
+			return Status;
 		}
 
 		RtlZeroMemory(Buffer, Length);
@@ -274,16 +275,14 @@ BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("[EptWriteFileHeader]->FltWriteFile failed. Status = %x\n", Status);
+			DbgPrint("EptWriteEncryptHeader->NULL FltWriteFile failed. Status = %x\n", Status);
             if (NULL != Buffer)
             {
                 ExFreePool(Buffer);
                 Buffer = NULL;
             }
-			return FALSE;
+			return Status;
 		}
-
-        DbgPrint("[EptWriteFileHeader]->FltWriteFile success.\n");
 
         if (NULL != Buffer)
         {
@@ -291,10 +290,269 @@ BOOLEAN EptWriteFileHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
             Buffer = NULL;
         }
 
-		return TRUE;
-	}
+        DbgPrint("EptWriteEncryptHeader->EOF=NULL FltWriteFile success.\n");
 
-	return FALSE;
+        return EPT_WRITE_ENCRYPT_HEADER;
+
+	}
+    else if((*Data)->Iopb->Parameters.Create.SecurityContext->DesiredAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA))
+    {
+        return EPT_TO_APPEND_ENCRYPT_HEADER;
+    }
+
+	return EPT_FINISHED_PROCESSING;
+}
+
+
+//手动打开文件，获得句柄
+NTSTATUS FileCreateForHeaderWriting(IN PFLT_INSTANCE Instance, IN PUNICODE_STRING uFileName, OUT HANDLE* phFileHandle)
+{
+
+    OBJECT_ATTRIBUTES oaObjectAttributes;
+    IO_STATUS_BLOCK ioStatusBlock;
+
+    NTSTATUS Status;
+
+
+    InitializeObjectAttributes(
+        &oaObjectAttributes,
+        uFileName,
+        OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+        NULL,
+        NULL);
+
+
+    Status = FltCreateFile(
+        gFilterHandle,
+        Instance,
+        phFileHandle,
+        FILE_READ_DATA | FILE_WRITE_DATA,
+        &oaObjectAttributes,
+        &ioStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        FILE_OPEN_IF,
+        FILE_NON_DIRECTORY_FILE,
+        NULL,
+        0,
+        IO_IGNORE_SHARE_ACCESS_CHECK);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("FileCreateForHeaderWriting->FltCreateFile failed Status = 0x%x.\n", Status);
+        return Status;
+    }
+
+    return Status;
+}
+
+
+//对于已经被写过数据的文件，当有写入的倾向时，在PostCreate中记录文件相关数据，在PreClose中重新加入加密头
+NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT StreamContext)
+{
+
+    NTSTATUS Status;
+
+    PFLT_VOLUME Volume;
+    FLT_VOLUME_PROPERTIES VolumeProps;
+
+    LARGE_INTEGER ByteOffset;
+    ULONG ReadLength, LengthReturned, WriteLength, ErrorLength;
+
+    HANDLE hFile = NULL;
+    PFILE_OBJECT FileObject = { 0 };
+
+    //这里因为是PreClose，文件已经关闭了，需要重新手动打开
+    Status = FileCreateForHeaderWriting(FltObjects->Instance, &StreamContext->FileName, &hFile);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EptAppendEncryptHeader->FileCreateForHeaderWriting failed. Status = %x\n", Status);
+        return Status;
+    }
+
+    Status = ObReferenceObjectByHandle(hFile, STANDARD_RIGHTS_ALL, *IoFileObjectType, KernelMode, (PVOID*)&FileObject, NULL);
+
+    //不知道为何，这里读出的数据 = 原始数据 + 原始数据 + 后写入的数据，所以用偏移把开头的原始数据去掉了
+    ErrorLength = EptGetFileSize(FltObjects);
+
+    //根据FltWriteFile， FltReadFile对于Length的要求，Length必须是扇区大小的整数倍
+    Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
+
+    if (!NT_SUCCESS(Status)) {
+
+        DbgPrint("EptAppendEncryptHeader->FltGetVolumeFromInstance failed. Status = %x\n", Status);
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        return Status;
+    }
+
+    Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &ReadLength);
+
+    if (NULL != Volume)
+    {
+        FltObjectDereference(Volume);
+        Volume = NULL;
+    }
+
+    PCHAR ReadBuffer, TempEncryptBuffer;
+
+    ReadLength = ErrorLength - (LONG)StreamContext->FileSize;
+    ReadLength = ROUND_TO_SIZE(ReadLength, VolumeProps.SectorSize);
+
+    //为FltReadFile分配内存
+    ReadBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, PagedPool, ReadLength, 'itRB');
+
+    if (!ReadBuffer)
+    {
+        DbgPrint("EptAppendEncryptHeader->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n");
+
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    RtlZeroMemory(ReadBuffer, ReadLength);
+
+
+    //将文件读入缓冲区
+    ByteOffset.QuadPart = StreamContext->FileSize;      //去掉原始数据
+    Status = FltReadFile(FltObjects->Instance, FileObject, &ByteOffset, (ULONG)ReadLength, (PVOID)ReadBuffer,
+        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET | FLTFL_IO_OPERATION_NON_CACHED, NULL, NULL, NULL);
+    
+
+    if (!NT_SUCCESS(Status)) 
+    {
+        //STATUS_PENDING
+        DbgPrint("EptAppendEncryptHeader->Append FltReadFile failed. Status = %X.\n", Status);
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        return Status;
+    }
+
+
+    //获得加密后数据的大小
+    if (!EptAesEncrypt(FltObjects, (PUCHAR)ReadBuffer, &LengthReturned, TRUE))
+    {
+        DbgPrint("EptAppendEncryptHeader->EptAesEncrypt get buffer encrypted size failed.\n");
+        return FALSE;
+    }
+
+    WriteLength = LengthReturned + FILE_FLAG_SIZE;
+    WriteLength = ROUND_TO_SIZE(WriteLength, VolumeProps.SectorSize);
+
+    TempEncryptBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, PagedPool, WriteLength, 'itRB');
+
+    if (!TempEncryptBuffer)
+    {
+        DbgPrint("EptAppendEncryptHeader->FltAllocatePoolAlignedWithTag TempEncryptBuffer failed.\n");
+
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    RtlZeroMemory(TempEncryptBuffer, WriteLength);
+    RtlMoveMemory(TempEncryptBuffer, FILE_FLAG, strlen(FILE_FLAG));
+    RtlMoveMemory(TempEncryptBuffer + FILE_FLAG_SIZE, ReadBuffer, ReadLength);
+
+    //加密整体的数据
+    WriteLength -= FILE_FLAG_SIZE;
+    if (!EptAesEncrypt(FltObjects, (PUCHAR)TempEncryptBuffer + FILE_FLAG_SIZE, &WriteLength, FALSE))
+    {
+        DbgPrint("EptAppendEncryptHeader->EptAesEncrypt encrypte buffer failed.\n");
+    }
+
+    //DbgPrint("EptAppendEncryptHeader->Encrypted content = %s.\n", TempEncryptBuffer + FILE_FLAG_SIZE);
+
+    //修改文件大小，这个会在PostQueryInfo中修改EOF
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+    StreamContext->FileSize = ErrorLength - (LONG)StreamContext->FileSize;
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+    //为写入文件开辟大小
+    FILE_END_OF_FILE_INFORMATION EOF = { 0 };
+    EOF.EndOfFile.QuadPart = ErrorLength - (LONG)StreamContext->FileSize + FILE_FLAG_SIZE;
+    Status = FltSetInformationFile(FltObjects->Instance, FileObject, &EOF, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
+
+    //DbgPrint("filesize %d EOF %d\n", ErrorLength - (LONG)StreamContext->FileSize, EOF.EndOfFile.QuadPart);
+
+
+    //写入带加密标记头的数据
+    ByteOffset.QuadPart = 0;
+    Status = FltWriteFile(FltObjects->Instance, FileObject, &ByteOffset, (ULONG)WriteLength + FILE_FLAG_SIZE, TempEncryptBuffer,
+        FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, NULL, NULL);
+
+
+    if (!NT_SUCCESS(Status)) {
+
+        DbgPrint("EptAppendEncryptHeader->Append FltWriteFile failed. Status = %x\n", Status);
+
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+
+        if (NULL != TempEncryptBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, TempEncryptBuffer, 'itRB');
+            TempEncryptBuffer = NULL;
+        }
+
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        return Status;
+    }
+
+    if (NULL != ReadBuffer)
+    {
+        FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+        ReadBuffer = NULL;
+    }
+
+    if (NULL != TempEncryptBuffer)
+    {
+        FltFreePoolAlignedWithTag(FltObjects->Instance, TempEncryptBuffer, 'itRB');
+        TempEncryptBuffer = NULL;
+    }
+
+    if (NULL != hFile) 
+    {
+        FltClose(hFile);
+        hFile = NULL;
+    }
+
+    DbgPrint("EptAppendEncryptHeader->Append FltWriteFile success.\n");
+
+    return EPT_APPEND_ENCRYPT_HEADER;
 }
 
 

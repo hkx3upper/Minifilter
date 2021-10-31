@@ -5,7 +5,9 @@
 typedef struct EPT_STREAM_CONTEXT {
 
 	LONG FlagExist;
+	LONG AppendHeader;
 	LONGLONG FileSize;
+	UNICODE_STRING FileName;
 	PERESOURCE Resource;
 
 }EPT_STREAM_CONTEXT, * PEPT_STREAM_CONTEXT;

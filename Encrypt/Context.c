@@ -34,22 +34,35 @@ BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_
 
 		if (!NT_SUCCESS(Status)) {
 
-			DbgPrint("[EptCreateContext]->FltAllocateContext FLT_STREAM_CONTEXT failed. Status = %X\n", Status);
+			DbgPrint("EptCreateContext->FltAllocateContext FLT_STREAM_CONTEXT failed. Status = %X\n", Status);
 			return FALSE;
 		}
 
 		RtlZeroMemory(StreamContext, sizeof(EPT_STREAM_CONTEXT));
 
-		StreamContext->Resource = ExAllocatePoolWithTag(NonPagedPool, sizeof(ERESOURCE), FLT_STREAM_CONTEXT);
+		StreamContext->Resource = ExAllocatePoolWithTag(NonPagedPool, sizeof(ERESOURCE), STREAM_CONTEXT_TAG);
 
 		if (NULL == StreamContext->Resource)
 		{
-			DbgPrint("[EptCreateContext]->StreamContext->Resource ExAllocatePoolWithTag failed.\n");
+			DbgPrint("EptCreateContext->StreamContext->Resource ExAllocatePoolWithTag failed.\n");
 			FltReleaseContext(StreamContext);
 			return FALSE;
 		}
 
 		ExInitializeResourceLite(StreamContext->Resource);
+
+		StreamContext->FileName.Buffer = ExAllocatePoolWithTag(NonPagedPool, 260 * sizeof(WCHAR), STREAM_CONTEXT_TAG);
+
+		if (NULL == StreamContext->FileName.Buffer)
+		{
+			DbgPrint("EptCreateContext->StreamContext->FileName.Buffer ExAllocatePoolWithTag failed.\n");
+			FltReleaseContext(StreamContext);
+			return FALSE;
+		}
+
+		RtlZeroMemory(StreamContext->FileName.Buffer, 260 * sizeof(WCHAR));
+		StreamContext->FileName.Length = 260;
+		StreamContext->FileName.MaximumLength = 260;
 
 		*CompletionContext = StreamContext;
 

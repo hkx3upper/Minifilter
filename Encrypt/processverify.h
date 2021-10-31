@@ -6,8 +6,6 @@
 #define PROCESS_RULES_HASH_TAG 'prHT'
 #define PROCESS_FILE_BUFFER_TAG 'pfBT'
 
-#define EPT_STATUS_TARGET_MATCH			1
-#define EPT_STATUS_TARGET_DONT_MATCH	0
 
 typedef NTSTATUS(*EptQueryInformationProcess) (
 	_In_      HANDLE,
@@ -19,24 +17,6 @@ typedef NTSTATUS(*EptQueryInformationProcess) (
 
 extern EptQueryInformationProcess pEptQueryInformationProcess;
 
-//扩展名用 , （英文）分隔，用 , （英文）结束 例如：txt,docx，并在count中记录数量
-typedef struct EPT_PROCESS_RULES
-{
-	LIST_ENTRY ListEntry;
-	char TargetProcessName[260];
-	char TargetExtension[100];
-	int count;
-	UCHAR Hash[32];
-	BOOLEAN IsCheckHash;
-
-}EPT_PROCESS_RULES, * PEPT_PROCESS_RULES;
-
-extern LIST_ENTRY ListHead;
-extern KSPIN_LOCK List_Spin_Lock;
-extern ERESOURCE List_Resource;
-
-
-VOID EptListCleanUp();
 
 NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer);
 

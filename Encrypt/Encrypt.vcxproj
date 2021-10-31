@@ -37,6 +37,7 @@
   <ItemGroup>
     <ClCompile Include="Cryptography.c" />
     <ClCompile Include="CommPort.c" />
+    <ClCompile Include="LinkedList.c" />
     <ClCompile Include="ProcessVerify.c" />
     <ClCompile Include="SwapBuffers.c" />
     <ClCompile Include="FileFunc.c" />
@@ -217,8 +218,12 @@
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="global.h" />
+    <ClInclude Include="linkedList.h" />
     <ClInclude Include="processverify.h" />
     <ClInclude Include="swapbuffers.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\schedule.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

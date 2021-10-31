@@ -45,6 +45,9 @@
     <ClCompile Include="ProcessVerify.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="LinkedList.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="global.h">
@@ -68,5 +71,13 @@
     <ClInclude Include="processverify.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="linkedList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\schedule.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
   </ItemGroup>
 </Project>

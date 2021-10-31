@@ -5,6 +5,15 @@
 
 extern PFLT_FILTER gFilterHandle;
 
+#define EPT_STATUS_TARGET_MATCH			0xFFFFFFFE
+#define EPT_STATUS_TARGET_DONT_MATCH	0xFFFFFFFD
+#define EPT_NULL_POINTER                0xFFFFFFFC
+#define EPT_WRITE_ENCRYPT_HEADER        0xFFFFFFFB
+#define EPT_ALREADY_HAVE_ENCRYPT_HEADER 0xFFFFFFFA
+#define EPT_FINISHED_PROCESSING         0xFFFFFFF9
+#define EPT_APPEND_ENCRYPT_HEADER       0xFFFFFFF8
+#define EPT_TO_APPEND_ENCRYPT_HEADER    0xFFFFFFF7
+
 /*************************************************************************
     Prototypes
 *************************************************************************/
@@ -139,6 +148,21 @@ EncryptPreCleanUp(
 
 FLT_POSTOP_CALLBACK_STATUS
 EncryptPostCleanUp(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags
+);
+
+FLT_PREOP_CALLBACK_STATUS
+EncryptPreClose(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
+);
+
+FLT_POSTOP_CALLBACK_STATUS
+EncryptPostClose(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
