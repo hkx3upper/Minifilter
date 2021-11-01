@@ -99,19 +99,11 @@ VOID EptAesCleanUp()
 }
 
 
-BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag)
+BOOLEAN EptAesEncrypt(IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOOLEAN ReturnLengthFlag)
 {
-
-	UNREFERENCED_PARAMETER(FltObjects);
 
 	if (!AesInitVar.Flag)
 	{
-		return FALSE;
-	}
-
-	if (NULL == FltObjects)
-	{
-		DbgPrint("[EptAesEncrypt]->FltObjects is NULL.\n");
 		return FALSE;
 	}
 
@@ -194,29 +186,28 @@ BOOLEAN EptAesEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PUCHAR Buffer,
 }
 
 
-BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
+NTSTATUS EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 {
 
 	if (!AesInitVar.Flag)
 	{
-		return FALSE;
+		return EPT_NULL_POINTER;
 	}
 
 	if (NULL == Buffer)
 	{
-		DbgPrint("[EptAesDecrypt]->Buffer is NULL.\n");
-		return FALSE;
+		DbgPrint("EptAesDecrypt->Buffer is NULL.\n");
+		return EPT_NULL_POINTER;
 	}
 
 	if (0 == Length)
 	{
-		DbgPrint("[EptAesDecrypt]->Length is NULL.\n");
-		return FALSE;
+		DbgPrint("EptAesDecrypt->Length is NULL.\n");
+		return EPT_NULL_POINTER;
 	}
 
 	NTSTATUS Status;
 	ULONG LengthReturned, BufferSize;
-
 
 	BufferSize = ROUND_TO_SIZE(Length, PAGE_SIZE);
 
@@ -224,8 +215,8 @@ BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 
 	if (!TempBuffer)
 	{
-		DbgPrint("[EptAesDecrypt]->ExAllocatePoolWithTag TempBuffer failed.\n");
-		return FALSE;
+		DbgPrint("EptAesDecrypt->ExAllocatePoolWithTag TempBuffer failed.\n");
+		return STATUS_UNSUCCESSFUL;
 	}
 
 	RtlZeroMemory(TempBuffer, Length);
@@ -238,13 +229,13 @@ BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 		//STATUS_BUFFER_TOO_SMALL
 		//STATUS_INVALID_HANDLE
 		//STATUS_DATA_ERROR
-		DbgPrint("[EptAesDecrypt]->BCryptDecrypt failed Status = %X.\n", Status);
+		DbgPrint("EptAesDecrypt->BCryptDecrypt failed Status = %X.\n", Status);
 		if (NULL != TempBuffer)
 		{
 			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 			TempBuffer = NULL;
 		}
-		return FALSE;
+		return Status;
 	}
 
 	if (NULL != TempBuffer)
@@ -252,5 +243,6 @@ BOOLEAN EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 		ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 		TempBuffer = NULL;
 	}
-	return TRUE;
+
+	return STATUS_SUCCESS;
 }

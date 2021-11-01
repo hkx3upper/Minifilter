@@ -5,57 +5,10 @@
 #include "cryptography.h"
 
 
-ULONG BreakPointFlag = 1;
-
 #define FILE_CLEAR_CACHE_USE_ORIGINAL_LOCK  1
 
-
-//自定义断点，单次，获取系统时间，输出后等待1秒，断点
-VOID EptBreakPointOnce() {
-
-	LARGE_INTEGER SystemTime;
-	LARGE_INTEGER LocalTime;
-	TIME_FIELDS  TimeFiled;
-	KEVENT Event;
-	ULONG MircoSecond = 1000000;
-
-	if (BreakPointFlag) {
-
-		BreakPointFlag--;
-
-		//获取当前时间
-		KeQuerySystemTime(&SystemTime);
-		ExSystemTimeToLocalTime(&SystemTime, &LocalTime);
-		RtlTimeToTimeFields(&LocalTime, &TimeFiled);
-
-		DbgPrint("\n-----------------------------------------------------\n\n");
-		DbgPrint("Ept DbgBreakPoint once. Test time = %d-%02d-%02d %02d:%02d.\n"
-			, TimeFiled.Year
-			, TimeFiled.Month
-			, TimeFiled.Day
-			, TimeFiled.Hour
-			, TimeFiled.Minute);
-		DbgPrint("\n-----------------------------------------------------\n");
-
-		//初始化一个事件内核对象, 并初始化为非触发态
-		KeInitializeEvent(&Event, NotificationEvent, FALSE);
-		//设置等待时间
-		LARGE_INTEGER TimeOut = RtlConvertUlongToLargeInteger(-10 * MircoSecond);
-		//等待事件对象1秒
-		KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, &TimeOut);
-
-		DbgBreakPoint();
-
-		return;
-
-	}
-}
-
-
-VOID EptReadWriteCallbackRoutine(
-    PFLT_CALLBACK_DATA CallbackData,
-    PFLT_CONTEXT Context
-)
+//读取写入加密头时用，我也不太懂为啥要用事件做同步（这和我理解中事件用于多线程同步的方式不太一样），但不加，会出问题......
+VOID EptReadWriteCallbackRoutine(IN PFLT_CALLBACK_DATA CallbackData, IN PFLT_CONTEXT Context)
 {
     UNREFERENCED_PARAMETER(CallbackData);
     KeSetEvent((PRKEVENT)Context, IO_NO_INCREMENT, FALSE);
@@ -63,16 +16,70 @@ VOID EptReadWriteCallbackRoutine(
 
 
 //获得文件大小，非重入
-ULONG EptGetFileSize(IN PCFLT_RELATED_OBJECTS FltObjects)
+ULONG EptGetFileSize(IN PFLT_INSTANCE Instance, IN PFILE_OBJECT FileObject)
 {
-    ASSERT(FltObjects != NULL);
 
-    FILE_STANDARD_INFORMATION StandardInfo;
+    FILE_STANDARD_INFORMATION StandardInfo = { 0 };
     ULONG LengthReturned;
 
-    FltQueryInformationFile(FltObjects->Instance, FltObjects->FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
+    FltQueryInformationFile(Instance, FileObject, &StandardInfo, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation, &LengthReturned);
 
     return (ULONG)StandardInfo.EndOfFile.QuadPart;
+}
+
+
+//设置文件大小
+NTSTATUS EptSetFileEOF(IN PFLT_INSTANCE Instance, IN PFILE_OBJECT FileObject, LONGLONG FileSize)
+{
+    NTSTATUS Status;
+    FILE_END_OF_FILE_INFORMATION EOF = { 0 };
+
+    EOF.EndOfFile.QuadPart = FileSize;
+
+    Status = FltSetInformationFile(Instance, FileObject, &EOF, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        DbgPrint("EptSetFileEOF->FltSetInformationFile failed status = 0x%x.", Status);
+        return Status;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+
+//获得卷的扇区大小
+ULONG EptGetVolumeSectorSize(IN PFLT_INSTANCE Instance)
+{
+    NTSTATUS Status;
+    PFLT_VOLUME Volume = { 0 };
+    FLT_VOLUME_PROPERTIES VolumeProps = { 0 };
+    ULONG LengthReturned = 0;
+
+    Status = FltGetVolumeFromInstance(Instance, &Volume);
+
+    if (!NT_SUCCESS(Status)) {
+
+        DbgPrint("EptGetVolumeSectorSize->FltGetVolumeFromInstance failed. Status = %x\n", Status);
+        goto EXIT;
+    }
+
+    Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &LengthReturned);
+
+    if (!NT_SUCCESS(Status))
+    {
+        //DbgPrint("EptGetVolumeSectorSize->FltGetVolumeProperties failed. Status = %x\n", Status);
+        goto EXIT;
+    }
+
+EXIT:
+    if (NULL != Volume)
+    {
+        FltObjectDereference(Volume);
+        Volume = NULL;
+    }
+
+    return VolumeProps.SectorSize;
 }
 
 
@@ -305,7 +312,7 @@ NTSTATUS EptWriteEncryptHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED
 
 
 //手动打开文件，获得句柄
-NTSTATUS FileCreateForHeaderWriting(IN PFLT_INSTANCE Instance, IN PUNICODE_STRING uFileName, OUT HANDLE* phFileHandle)
+NTSTATUS EptCreateFileForHeaderWriting(IN PFLT_INSTANCE Instance, IN PUNICODE_STRING uFileName, OUT HANDLE* phFileHandle)
 {
 
     OBJECT_ATTRIBUTES oaObjectAttributes;
@@ -348,8 +355,8 @@ NTSTATUS FileCreateForHeaderWriting(IN PFLT_INSTANCE Instance, IN PUNICODE_STRIN
 }
 
 
-//对于已经被写过数据的文件，当有写入的倾向时，在PostCreate中记录文件相关数据，在PreClose中重新加入加密头
-NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT StreamContext)
+//对于已经被写过数据的文件，当有写入的倾向时，在PostCreate中记录文件相关数据，在PreClose中重新加入加密头，并加密数据
+NTSTATUS EptAppendEncryptHeaderAndEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT StreamContext)
 {
 
     NTSTATUS Status;
@@ -364,7 +371,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
     PFILE_OBJECT FileObject = { 0 };
 
     //这里因为是PreClose，文件已经关闭了，需要重新手动打开
-    Status = FileCreateForHeaderWriting(FltObjects->Instance, &StreamContext->FileName, &hFile);
+    Status = EptCreateFileForHeaderWriting(FltObjects->Instance, &StreamContext->FileName, &hFile);
 
     if (!NT_SUCCESS(Status))
     {
@@ -375,7 +382,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
     Status = ObReferenceObjectByHandle(hFile, STANDARD_RIGHTS_ALL, *IoFileObjectType, KernelMode, (PVOID*)&FileObject, NULL);
 
     //不知道为何，这里读出的数据 = 原始数据 + 原始数据 + 后写入的数据，所以用偏移把开头的原始数据去掉了
-    ErrorLength = EptGetFileSize(FltObjects);
+    ErrorLength = EptGetFileSize(FltObjects->Instance, FltObjects->FileObject);
 
     //根据FltWriteFile， FltReadFile对于Length的要求，Length必须是扇区大小的整数倍
     Status = FltGetVolumeFromInstance(FltObjects->Instance, &Volume);
@@ -388,6 +395,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
             FltClose(hFile);
             hFile = NULL;
         }
+        ObDereferenceObject(FileObject);
         return Status;
     }
 
@@ -416,6 +424,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
             FltClose(hFile);
             hFile = NULL;
         }
+        ObDereferenceObject(FileObject);
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -424,9 +433,11 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
     //将文件读入缓冲区
     ByteOffset.QuadPart = StreamContext->FileSize;      //去掉原始数据
+    DbgPrint("EptAppendEncryptHeader->ByteOffset.QuadPart = %d", ByteOffset.QuadPart);
     Status = FltReadFile(FltObjects->Instance, FileObject, &ByteOffset, (ULONG)ReadLength, (PVOID)ReadBuffer,
         FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET | FLTFL_IO_OPERATION_NON_CACHED, NULL, NULL, NULL);
     
+    DbgPrint("EptAppendEncryptHeader->FltReadFile %s\n", ReadBuffer);
 
     if (!NT_SUCCESS(Status)) 
     {
@@ -442,15 +453,27 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
             FltClose(hFile);
             hFile = NULL;
         }
+        ObDereferenceObject(FileObject);
         return Status;
     }
 
 
     //获得加密后数据的大小
-    if (!EptAesEncrypt(FltObjects, (PUCHAR)ReadBuffer, &LengthReturned, TRUE))
+    if (!EptAesEncrypt((PUCHAR)ReadBuffer, &LengthReturned, TRUE))
     {
         DbgPrint("EptAppendEncryptHeader->EptAesEncrypt get buffer encrypted size failed.\n");
-        return FALSE;
+        if (NULL != ReadBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
+            ReadBuffer = NULL;
+        }
+        if (NULL != hFile)
+        {
+            FltClose(hFile);
+            hFile = NULL;
+        }
+        ObDereferenceObject(FileObject);
+        return Status;
     }
 
     WriteLength = LengthReturned + FILE_FLAG_SIZE;
@@ -473,6 +496,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
             FltClose(hFile);
             hFile = NULL;
         }
+        ObDereferenceObject(FileObject);
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -482,7 +506,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
     //加密整体的数据
     WriteLength -= FILE_FLAG_SIZE;
-    if (!EptAesEncrypt(FltObjects, (PUCHAR)TempEncryptBuffer + FILE_FLAG_SIZE, &WriteLength, FALSE))
+    if (!EptAesEncrypt((PUCHAR)TempEncryptBuffer + FILE_FLAG_SIZE, &WriteLength, FALSE))
     {
         DbgPrint("EptAppendEncryptHeader->EptAesEncrypt encrypte buffer failed.\n");
     }
@@ -491,12 +515,12 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
     //修改文件大小，这个会在PostQueryInfo中修改EOF
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-    StreamContext->FileSize = ErrorLength - (LONG)StreamContext->FileSize;
+    StreamContext->FileSize = (LONGLONG)ErrorLength - (LONG)StreamContext->FileSize;
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
     //为写入文件开辟大小
     FILE_END_OF_FILE_INFORMATION EOF = { 0 };
-    EOF.EndOfFile.QuadPart = ErrorLength - (LONG)StreamContext->FileSize + FILE_FLAG_SIZE;
+    EOF.EndOfFile.QuadPart = (LONGLONG)ErrorLength - (LONG)StreamContext->FileSize + FILE_FLAG_SIZE;
     Status = FltSetInformationFile(FltObjects->Instance, FileObject, &EOF, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
 
     //DbgPrint("filesize %d EOF %d\n", ErrorLength - (LONG)StreamContext->FileSize, EOF.EndOfFile.QuadPart);
@@ -529,6 +553,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
             FltClose(hFile);
             hFile = NULL;
         }
+        ObDereferenceObject(FileObject);
         return Status;
     }
 
@@ -550,9 +575,331 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
         hFile = NULL;
     }
 
+    ObDereferenceObject(FileObject);
+
     DbgPrint("EptAppendEncryptHeader->Append FltWriteFile success.\n");
 
     return EPT_APPEND_ENCRYPT_HEADER;
+}
+
+
+//文件路径磁盘转为DOS名 https://blog.csdn.net/zyorz/category_6871818.html
+NTSTATUS EptQuerySymbolicLink(IN PUNICODE_STRING SymbolicLinkName, OUT PUNICODE_STRING LinkTarget)
+//输入\\??\\c:-->\\device\\\harddiskvolume1
+//LinkTarget.Buffer注意要释放
+{
+    OBJECT_ATTRIBUTES   oa = { 0 };
+    NTSTATUS            status = 0;
+    HANDLE              handle = NULL;
+
+    InitializeObjectAttributes(
+        &oa,
+        SymbolicLinkName,
+        OBJ_CASE_INSENSITIVE,
+        0,
+        0);
+
+    status = ZwOpenSymbolicLinkObject(&handle, GENERIC_READ, &oa);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    LinkTarget->MaximumLength = 260 * sizeof(WCHAR);
+    LinkTarget->Length = 0;
+    LinkTarget->Buffer = ExAllocatePoolWithTag(PagedPool, LinkTarget->MaximumLength, 'SOD');
+    if (!LinkTarget->Buffer)
+    {
+        ZwClose(handle);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(LinkTarget->Buffer, LinkTarget->MaximumLength);
+
+    status = ZwQuerySymbolicLinkObject(handle, LinkTarget, NULL);
+    ZwClose(handle);
+
+    if (!NT_SUCCESS(status))
+    {
+        ExFreePool(LinkTarget->Buffer);
+    }
+
+    return status;
+}
+
+
+//得到对应卷的实例 https://blog.csdn.net/feixi7358/article/details/85039734
+PFLT_INSTANCE EptGetVolumeInstance(IN PFLT_FILTER pFilter, IN PUNICODE_STRING pVolumeName)
+////获得文件所在盘的实例
+//PFLT_INSTANCE fileInstance = NULL;
+//UNICODE_STRING  pVolumeNamec;
+//RtlInitUnicodeString(&pVolumeNamec, L"\\Device\\HarddiskVolume2");//所在的卷
+//fileInstance = XBFltGetVolumeInstance(gFilterHandle, &pVolumeNamec);
+{
+    NTSTATUS		status;
+    PFLT_INSTANCE	pInstance = NULL;
+    PFLT_VOLUME		pVolumeList[100];
+    ULONG			uRet;
+    UNICODE_STRING	uniName = { 0 };
+    ULONG 			index = 0;
+    WCHAR			wszNameBuffer[260] = { 0 };
+
+    status = FltEnumerateVolumes(pFilter,
+        NULL,
+        0,
+        &uRet);
+    if (status != STATUS_BUFFER_TOO_SMALL)
+    {
+        return NULL;
+    }
+
+    status = FltEnumerateVolumes(pFilter,
+        pVolumeList,
+        uRet,
+        &uRet);
+
+    if (!NT_SUCCESS(status))
+    {
+
+        return NULL;
+    }
+    uniName.Buffer = wszNameBuffer;
+
+    if (uniName.Buffer == NULL)
+    {
+        for (index = 0; index < uRet; index++)
+            FltObjectDereference(pVolumeList[index]);
+
+        return NULL;
+    }
+
+    uniName.MaximumLength = sizeof(wszNameBuffer);
+
+    for (index = 0; index < uRet; index++)
+    {
+        uniName.Length = 0;
+
+        status = FltGetVolumeName(pVolumeList[index],
+            &uniName,
+            NULL);
+
+        if (!NT_SUCCESS(status))
+            continue;
+
+        if (RtlCompareUnicodeString(&uniName,
+            pVolumeName,
+            TRUE) != 0)
+            continue;
+
+        status = FltGetVolumeInstanceFromName(pFilter,
+            pVolumeList[index],
+            NULL,
+            &pInstance);
+
+        if (NT_SUCCESS(status))
+        {
+            FltObjectDereference(pInstance);
+            break;
+        }
+    }
+
+    for (index = 0; index < uRet; index++)
+        FltObjectDereference(pVolumeList[index]);
+    return pInstance;
+}
+
+
+//特权解密命令对应的执行函数，负责除去加密头，解密数据
+NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
+{
+
+    NTSTATUS Status;
+
+    UNICODE_STRING uFileName = { 0 };
+    HANDLE hFile = NULL;
+    PFILE_OBJECT FileObject = { 0 };
+
+    PWCHAR lpFileName = FileName;
+    WCHAR wSymbolLinkName[260] = { 0 };
+    UNICODE_STRING uSymbolLinkName = { 0 };
+    UNICODE_STRING uDosName = { 0 };
+
+    PFLT_INSTANCE Instance = { 0 };
+    ULONG FileSize = 0, SectorSize = 0, ReadLength = 0;
+
+    PCHAR ReadBuffer = NULL;
+    LARGE_INTEGER ByteOffset;
+
+    PEPT_STREAM_CONTEXT StreamContext = NULL;
+
+    RtlInitUnicodeString(&uFileName, FileName);
+
+    //DbgPrint("EptRemoveEncryptHeaderAndDecrypt->Test FileName = %wZ.\n", uFileName);
+
+    //打开文件，获得hFile，得到FileObject，给FltReadFile/FltWriteFile用
+    Status = EptCreateFileForHeaderWriting(NULL, &uFileName, &hFile);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FileCreateForHeaderWriting failed ststus = 0x%x.\n", Status);
+        goto EXIT;
+    }
+
+    Status = ObReferenceObjectByHandle(hFile, STANDARD_RIGHTS_ALL, *IoFileObjectType, KernelMode, (PVOID*)&FileObject, NULL);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->ObReferenceObjectByHandle failed ststus = 0x%x.\n", Status);
+        goto EXIT;
+    }
+
+
+    //由文件的符号链接，找到对应磁盘的DOS名，找到磁盘的Instance
+    while (*lpFileName != L':')
+    {
+        lpFileName++;
+    }
+
+    //wSymbolLinkName = L"\\??\\C:"
+    RtlMoveMemory(wSymbolLinkName, FileName, (lpFileName - FileName + 1) * sizeof(WCHAR));
+
+    RtlInitUnicodeString(&uSymbolLinkName, wSymbolLinkName);
+
+    Status = EptQuerySymbolicLink(&uSymbolLinkName, &uDosName);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptQuerySymbolicLink failed ststus = 0x%x.\n", Status);
+        goto EXIT;
+    }
+
+    Instance = EptGetVolumeInstance(gFilterHandle, &uDosName);
+
+    if (NULL == Instance)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptGetVolumeInstance failed.\n");
+        goto EXIT;
+    }
+
+    //这里的文件大小是加密头0x1000+密文对齐后的大小
+    FileSize = EptGetFileSize(Instance, FileObject);
+    SectorSize = EptGetVolumeSectorSize(Instance);
+
+    if (FileSize <= FILE_FLAG_SIZE)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->%ws is a null file.\n", FileName);
+        goto EXIT;
+    }
+
+    ReadLength = ROUND_TO_SIZE(FileSize - FILE_FLAG_SIZE, SectorSize);
+
+    ReadBuffer = FltAllocatePoolAlignedWithTag(Instance, PagedPool, ReadLength, EPT_READ_BUFFER_FLAG);
+
+    if (NULL == ReadBuffer)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltAllocatePoolAlignedWithTag failed.\n");
+        goto EXIT;
+    }
+
+    RtlZeroMemory(ReadBuffer, ReadLength);
+
+    //将密文读入缓冲区
+    ByteOffset.QuadPart = FILE_FLAG_SIZE;      //去掉加密头
+    Status = FltReadFile(Instance, FileObject, &ByteOffset, (ULONG)ReadLength, (PVOID)ReadBuffer,
+        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET | FLTFL_IO_OPERATION_NON_CACHED, NULL, NULL, NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltReadFile failed. Status = %X.\n", Status);
+        goto EXIT;
+    }
+
+    //解密
+    Status = EptAesDecrypt((PUCHAR)ReadBuffer, FileSize - FILE_FLAG_SIZE);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptAesDecrypt failed. Status = %X.\n", Status);
+        goto EXIT;
+    }
+
+    //设置去掉加密文件头的大小
+    Status = EptSetFileEOF(Instance, FileObject, strlen(ReadBuffer));
+
+    if (STATUS_SUCCESS != Status)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptSetFileEOF failed. Status = %X.\n", Status);
+        goto EXIT;
+    }
+
+    //写入原始明文
+    ByteOffset.QuadPart = 0;
+    Status = FltWriteFile(Instance, FileObject, &ByteOffset, (ULONG)strlen(ReadBuffer), ReadBuffer,
+        FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, NULL, NULL, NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        //写入失败，恢复EOF
+        EptSetFileEOF(Instance, FileObject, FileSize);
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltWriteFile failed. Status = %X.\n", Status);
+        goto EXIT;
+    }
+
+    if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) 
+    {
+        EptSetFileEOF(Instance, FileObject, FileSize);
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptCreateContext failed.");
+        goto EXIT;
+    }
+
+    if (!EptGetOrSetContext(Instance, FileObject, &StreamContext, FLT_STREAM_CONTEXT))
+    {
+        EptSetFileEOF(Instance, FileObject, FileSize);
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->EptGetOrSetContext failed.");
+        goto EXIT;
+    }
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+    StreamContext->FlagExist = 0;
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+    //一定要FlushCache
+    EptFileCacheClear(FileObject);
+
+    DbgPrint("EptRemoveEncryptHeaderAndDecrypt->success origfile = %s\n", ReadBuffer);
+
+EXIT:
+    if (NULL != FileObject)
+    {
+        ObDereferenceObject(FileObject);
+        FileObject = NULL;
+    }
+
+    if (NULL != hFile)
+    {
+        FltClose(hFile);
+        hFile = NULL;
+    }
+
+    if (NULL != uDosName.Buffer)
+    {
+        ExFreePool(uDosName.Buffer);
+        uDosName.Buffer = NULL;
+    }
+
+    if (NULL != ReadBuffer)
+    {
+        FltFreePoolAlignedWithTag(Instance, ReadBuffer, EPT_READ_BUFFER_FLAG);
+        ReadBuffer = NULL;
+    }
+
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
+
+    return Status;
 }
 
 

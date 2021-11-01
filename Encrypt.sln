@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 16.0.31025.194
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Encrypt", "Encrypt\Encrypt.vcxproj", "{86875795-45FC-45D3-8029-F30597CA2973}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD} = {7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EncryptUser", "EncryptUser\EncryptUser.vcxproj", "{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}"
 EndProject

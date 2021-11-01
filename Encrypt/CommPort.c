@@ -2,6 +2,7 @@
 #include "commport.h"
 #include "processverify.h"
 #include "linkedList.h"
+#include "privilegeendecrypt.h"
 
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
@@ -67,7 +68,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 		switch (MessageHeader.Command)
 		{
-		case 1:
+		case EPT_HELLO_KERNEL:
 		{
 			DbgPrint("%s", (Buffer + sizeof(EPT_MESSAGE_HEADER)));
 			break;
@@ -80,17 +81,17 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			ProcessRules = ExAllocatePoolWithTag(PagedPool, sizeof(EPT_PROCESS_RULES), PROCESS_RULES_BUFFER_TAG);
 			if (!ProcessRules)
 			{
-				DbgPrint("DriverEntry ExAllocatePoolWithTag ProcessRules failed.\n");
+				DbgPrint("MessageNotifyCallback ExAllocatePoolWithTag ProcessRules failed.\n");
 				return 0;
 			}
 
 			RtlZeroMemory(ProcessRules, sizeof(EPT_PROCESS_RULES));
 
-
-			RtlMoveMemory(ProcessRules->TargetProcessName, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES) - sizeof(LIST_ENTRY));
+			RtlMoveMemory(ProcessRules, Buffer + sizeof(EPT_MESSAGE_HEADER), sizeof(EPT_PROCESS_RULES));
 
 			EPT_PROCESS_RULES TempPR = { 0 };
 			RtlMoveMemory(TempPR.TargetProcessName, ProcessRules->TargetProcessName, strlen(ProcessRules->TargetProcessName));
+
 			Status = EptIsPRInLinkedList(&TempPR);
 
 			//把链表指针清零，为之后的比较
@@ -134,7 +135,38 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 			break;
 		}
+		case EPT_PRIVILEGE_DECRYPT:
+		{
+			EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
+			ANSI_STRING Ansi = { 0 };
+			UNICODE_STRING uFileName = { 0 };
+
+			RtlMoveMemory(PrivDecrypt.FileName, Buffer + sizeof(EPT_MESSAGE_HEADER), strlen((PCHAR)Buffer + sizeof(EPT_MESSAGE_HEADER)));
+
+			DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT FileName = %s.\n", PrivDecrypt.FileName);
+
+			RtlInitAnsiString(&Ansi, PrivDecrypt.FileName);
+
+			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, TRUE);
+
+			if (STATUS_SUCCESS != Status)
+			{
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
+				return Status;
+			}
+
+			Status = EptPrivilegeDecrypt(&uFileName);
+
+			if (STATUS_SUCCESS != Status)
+			{
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->EptPrivilegeDecrypt failed ststus = 0x%x.\n", Status);
+				break;
+			}
+
+			break;
 		}
+		}
+		
 
 		
 

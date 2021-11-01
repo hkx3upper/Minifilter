@@ -141,11 +141,7 @@ cleanup:
 }
 
 
-BOOLEAN EptVerifyHash(
-	IN PUCHAR Buffer, 
-	IN ULONG Length,
-	IN PUCHAR	OrigHash
-	)
+BOOLEAN EptVerifyHash(IN PUCHAR Buffer, IN ULONG Length, IN PUCHAR	OrigHash)
 {
 	if (NULL == Buffer)
 	{
@@ -192,11 +188,7 @@ BOOLEAN EptVerifyHash(
 }
 
 
-NTSTATUS EptReadProcessFile(
-	IN UNICODE_STRING ProcessName,
-	OUT PUCHAR* Buffer,
-	OUT PULONG Length
-	)
+NTSTATUS EptReadProcessFile(IN UNICODE_STRING ProcessName, OUT PUCHAR* Buffer, OUT PULONG Length)
 {
 
 	if (NULL == ProcessName.Buffer)
@@ -310,10 +302,7 @@ NTSTATUS EptReadProcessFile(
 
 
 //获取请求的进程名
-BOOLEAN EptGetProcessName(
-	IN PFLT_CALLBACK_DATA Data, 
-	IN PUNICODE_STRING ProcessName
-	) 
+BOOLEAN EptGetProcessName(IN PFLT_CALLBACK_DATA Data, IN PUNICODE_STRING ProcessName) 
 //ie浏览器会导致UNEXPECTED KERNEL MODE TRAP?
 //所以在PreCreate先过滤扩展名，尽量避免trap
 //或者以后可以使用遍历EPROCESS，获得进程名
@@ -481,6 +470,10 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 		}
 	}
 
+	if (EPT_STATUS_TARGET_MATCH == Status)
+	{
+		Status = ProcessRules.Access;
+	}
 
 	
 	if (NULL != AnisProcessName.Buffer)

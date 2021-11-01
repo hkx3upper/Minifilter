@@ -38,6 +38,7 @@
     <ClCompile Include="Cryptography.c" />
     <ClCompile Include="CommPort.c" />
     <ClCompile Include="LinkedList.c" />
+    <ClCompile Include="PrivilegeEnDecrypt.c" />
     <ClCompile Include="ProcessVerify.c" />
     <ClCompile Include="SwapBuffers.c" />
     <ClCompile Include="FileFunc.c" />
@@ -219,6 +220,7 @@
     <ClInclude Include="context.h" />
     <ClInclude Include="global.h" />
     <ClInclude Include="linkedList.h" />
+    <ClInclude Include="privilegeendecrypt.h" />
     <ClInclude Include="processverify.h" />
     <ClInclude Include="swapbuffers.h" />
   </ItemGroup>

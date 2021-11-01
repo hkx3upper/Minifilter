@@ -33,4 +33,4 @@ VOID EptSetFlagInContext(IN LONG* Flag, IN BOOLEAN Set);
 
 BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType);
 
-BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType);
+BOOLEAN EptGetOrSetContext(IN PFLT_INSTANCE Instance, IN PFILE_OBJECT FileObject, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType);

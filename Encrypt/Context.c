@@ -94,7 +94,7 @@ BOOLEAN EptCreateContext(IN OUT PFLT_CONTEXT* CompletionContext, IN FLT_CONTEXT_
 }
 
 
-BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType) {
+BOOLEAN EptGetOrSetContext(IN PFLT_INSTANCE Instance, IN PFILE_OBJECT FileObject, IN OUT PEPT_STREAM_CONTEXT* CompletionContext, IN FLT_CONTEXT_TYPE ContextType) {
 
 	NTSTATUS Status = 0;
 	PFLT_CONTEXT NewContext = NULL, OldContext = NULL;
@@ -108,12 +108,12 @@ BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS 
 
 	case FLT_STREAM_CONTEXT:
 	{
-		Status = FltGetStreamContext(FltObjects->Instance, FltObjects->FileObject, &OldContext);
+		Status = FltGetStreamContext(Instance, FileObject, &OldContext);
 		break;
 	}
 	case FLT_STREAMHANDLE_CONTEXT:
 	{
-		Status = FltGetStreamHandleContext(FltObjects->Instance, Data->Iopb->TargetFileObject, &OldContext);
+		Status = FltGetStreamHandleContext(Instance, FileObject, &OldContext);
 		break;
 	}
 
@@ -151,12 +151,12 @@ BOOLEAN EptGetOrSetContext(IN PFLT_CALLBACK_DATA Data, IN PCFLT_RELATED_OBJECTS 
 
 	case FLT_STREAM_CONTEXT:
 	{
-		Status = FltSetStreamContext(FltObjects->Instance, Data->Iopb->TargetFileObject, FLT_SET_CONTEXT_KEEP_IF_EXISTS, NewContext, &OldContext);
+		Status = FltSetStreamContext(Instance, FileObject, FLT_SET_CONTEXT_KEEP_IF_EXISTS, NewContext, &OldContext);
 		break;
 	}
 	case FLT_STREAMHANDLE_CONTEXT:
 	{
-		Status = FltSetStreamHandleContext(FltObjects->Instance, Data->Iopb->TargetFileObject, FLT_SET_CONTEXT_KEEP_IF_EXISTS, NewContext, &OldContext);
+		Status = FltSetStreamHandleContext(Instance, FileObject, FLT_SET_CONTEXT_KEEP_IF_EXISTS, NewContext, &OldContext);
 		break;
 	}
 

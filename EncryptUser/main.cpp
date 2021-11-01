@@ -39,7 +39,10 @@ int main()
 {
 
 	EPT_MESSAGE_HEADER MessageHeader;
-	EPT_PROCESS_RULES ProcessRules;
+	EPT_PROCESS_RULES ProcessRules = { 0 };
+
+	//system("pause");
+
 	char Buffer[MESSAGE_SIZE];
 
 	printf("Hello World.\n");
@@ -52,7 +55,7 @@ int main()
 
 	//发送一个Hello
 	memset(Buffer, 0, MESSAGE_SIZE);
-	MessageHeader.Command = 1;
+	MessageHeader.Command = EPT_HELLO_KERNEL;
 	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
 
 	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
@@ -66,13 +69,14 @@ int main()
 
 	//发送进程规则
 	memset(Buffer, 0, MESSAGE_SIZE);
-	MessageHeader.Command = 2;
+	MessageHeader.Command = EPT_INSERT_PROCESS_RULES;
 	MessageHeader.Length = MESSAGE_SIZE - sizeof(MessageHeader);
 	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
 
-	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad.exe", sizeof("notepad.exe"));
-	RtlMoveMemory(ProcessRules.TargetExtension, "txt,c,", sizeof("txt,c,"));
-	ProcessRules.count = 2;
+	RtlMoveMemory(ProcessRules.TargetProcessName, "notepad++.exe", sizeof("notepad++.exe"));
+	RtlMoveMemory(ProcessRules.TargetExtension, "txt,c,cpp,", sizeof("txt,c,cpp,"));
+	ProcessRules.count = 3;
+	ProcessRules.Access = EPT_PR_ACCESS_READ_WRITE;
 
 	ULONGLONG Hash[4];
 	Hash[0] = 0xa28438e1388f272a;
@@ -102,6 +106,26 @@ int main()
 		return 0;
 	}
 
+
+	//发送特权解密命令
+	EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
+
+	memset(Buffer, 0, MESSAGE_SIZE);
+	MessageHeader.Command = EPT_PRIVILEGE_DECRYPT;
+	MessageHeader.Length = sizeof(PrivDecrypt.FileName);
+
+	RtlMoveMemory(PrivDecrypt.FileName, "\\??\\C:\\Desktop\\a.txt", strlen("\\??\\C:\\Desktop\\a.txt"));
+
+	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
+	RtlMoveMemory(Buffer + sizeof(MessageHeader), &PrivDecrypt, sizeof(EPT_MESSAGE_PRIV_DECRYPT));
+
+	if (!EptUserSendMessage(Buffer))
+	{
+		printf("EptUserSendMessage failed.\n");
+		return 0;
+	}
+
+	system("pause");
 
 	return 0;
 }

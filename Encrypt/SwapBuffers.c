@@ -51,7 +51,7 @@ BOOLEAN PreWriteSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
         }
 
         //获得加密后数据的大小
-        if (!EptAesEncrypt(FltObjects, OrigBuffer, &WriteLength, TRUE))
+        if (!EptAesEncrypt(OrigBuffer, &WriteLength, TRUE))
         {
             DbgPrint("[PreWriteSwapBuffers]->EptAesEncrypt get buffer encrypted size failed.\n");
             return FALSE;
@@ -148,7 +148,7 @@ BOOLEAN PreWriteSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
     DbgPrint("[PreWriteSwapBuffers]->OrigBuffer content = %s.\n", NewBuffer);
 
     //这里WriteLength作为NewBuffer的大小传入，作为LengthReturned传出
-    if (!EptAesEncrypt(FltObjects, NewBuffer, &WriteLength, FALSE))
+    if (!EptAesEncrypt(NewBuffer, &WriteLength, FALSE))
     {
         DbgPrint("[PreWriteSwapBuffers]->EptAesEncrypt encrypte buffer failed.\n");
     }
@@ -356,7 +356,7 @@ BOOLEAN PostReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
     NewBuffer = SwapReadContext->NewBuffer;
     ReadLength = (ULONG)(*Data)->IoStatus.Information;
 
-    if (!EptAesDecrypt(NewBuffer, ReadLength))
+    if (STATUS_SUCCESS != EptAesDecrypt(NewBuffer, ReadLength))
     {
         DbgPrint("[PostReadSwapBuffers]->EptAesDecrypt Buffer failed!\n");
 
@@ -454,7 +454,7 @@ FLT_POSTOP_CALLBACK_STATUS PostReadSwapBuffersWhenSafe(IN PFLT_CALLBACK_DATA Dat
 
         DbgPrint("[PostReadSwapBuffersWhenSafe]->Encrypted content = %s ReadLength = %d Length = %d.\n", NewBuffer, ReadLength, Data->Iopb->Parameters.Read.Length);
      
-        if (!EptAesDecrypt(NewBuffer, ReadLength))
+        if (STATUS_SUCCESS != EptAesDecrypt(NewBuffer, ReadLength))
         {
             DbgPrint("[PostReadSwapBuffersWhenSafe]->EptAesDecrypt Buffer failed!\n");
 

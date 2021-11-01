@@ -22,6 +22,7 @@ Environment:
 #include "cryptography.h"
 #include "processverify.h"
 #include "linkedList.h"
+#include "privilegeendecrypt.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -408,6 +409,7 @@ Return Value:
     RtlInitUnicodeString(&FuncName, L"ZwQueryInformationProcess");
     pEptQueryInformationProcess = (EptQueryInformationProcess)(ULONG_PTR)MmGetSystemRoutineAddress(&FuncName);
 
+    //进程加密策略链表的一些初始化
     InitializeListHead(&ProcessRulesListHead);
     KeInitializeSpinLock(&ProcessRulesListSpinLock);
     ExInitializeResourceLite(&ProcessRulesListResource);
@@ -429,6 +431,9 @@ Return Value:
     RtlMoveMemory(ProcessRules->TargetExtension, "txt,", sizeof("txt,"));
     ProcessRules->count = 1;
     ProcessRules->IsCheckHash = FALSE;
+    ProcessRules->Access = EPT_PR_ACCESS_READ_WRITE;
+    //ProcessRules->Access = EPT_PR_ACCESS_BACKUP_RESTORE;
+    //ProcessRules->Access = EPT_PR_ACCESS_NO_ACCESS;
 
     ULONGLONG Hash[4];
     Hash[0] = 0xa28438e1388f272a;
@@ -454,7 +459,8 @@ Return Value:
     ExInterlockedInsertTailList(&ProcessRulesListHead, &ProcessRules->ListEntry, &ProcessRulesListSpinLock);
 #endif // DEBUG
 
-    
+    //用于内核和桌面命令创建的内核线程同步
+    KeInitializeEvent(&g_SynchronizationEvent, SynchronizationEvent, TRUE);
 
     //
     //  Register with FltMgr to tell it our callback routines
@@ -558,6 +564,7 @@ EncryptPreCreate(
 
 
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
     if (FlagOn(Data->Iopb->Parameters.Create.Options, FILE_DIRECTORY_FILE)) 
     {
@@ -570,9 +577,15 @@ EncryptPreCreate(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    //只要在PreCreate中检查Hash就可以了
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -608,8 +621,8 @@ EncryptPostCreate(
 
     StreamContext = CompletionContext;
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
+    {
         if (NULL != StreamContext)
         {
             FltReleaseContext(StreamContext);
@@ -675,9 +688,9 @@ EncryptPostCreate(
                 RtlMoveMemory(StreamContext->FileName.Buffer, FileNameInfo->Name.Buffer, FileNameInfo->Name.Length);
                 StreamContext->FileName.Length = FileNameInfo->Name.Length;
 
-                StreamContext->FileSize = (LONGLONG)EptGetFileSize(FltObjects);
+                StreamContext->FileSize = (LONGLONG)EptGetFileSize(FltObjects->Instance, FltObjects->FileObject);
 
-                DbgPrint("PostCreate OrigFilesize = %d", StreamContext->FileSize);
+                DbgPrint("PostCreate append encrypt header OrigFileSize = %d", StreamContext->FileSize);
 
                 ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -700,6 +713,20 @@ EncryptPostCreate(
 
     //DbgPrint("[EncryptPostCreate]->hit.\n");
 
+    Status = KeWaitForSingleObject(&g_SynchronizationEvent, Executive, KernelMode, FALSE, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EncryptPostCreate->KeWaitForSingleObject failed status = 0x%x.\n", Status);
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
+        return FLT_POSTOP_FINISHED_PROCESSING;
+    }
+
+   /* Status = KeReadStateEvent(&g_SynchronizationEvent);
+    DbgPrint("PostCreate g_SynchronizationEvent state = %d", Status);*/
 
     //到这里说明文件有加密标识头，设置StreamContext标识位
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
@@ -734,6 +761,7 @@ EncryptPreRead(
     UNREFERENCED_PARAMETER(CompletionContext);
 
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
     if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
@@ -750,8 +778,8 @@ EncryptPreRead(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
+    {
         if (NULL != StreamContext)
         {
             FltReleaseContext(StreamContext);
@@ -776,8 +804,15 @@ EncryptPreRead(
         StreamContext = NULL;
     }
 
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -834,6 +869,7 @@ EncryptPreWrite(
     UNREFERENCED_PARAMETER(CompletionContext);
     
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
     if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
@@ -851,8 +887,8 @@ EncryptPreWrite(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
+    {
         if (NULL != StreamContext)
         {
             FltReleaseContext(StreamContext);
@@ -877,8 +913,15 @@ EncryptPreWrite(
         StreamContext = NULL;
     }
 
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -944,10 +987,23 @@ EncryptPreQueryInformation(
     UNREFERENCED_PARAMETER(CompletionContext);
 
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
     if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
     {
         return FLT_PREOP_DISALLOW_FASTIO;
+    }
+
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
+    {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
@@ -981,7 +1037,7 @@ EncryptPostQueryInformation(
 
     StreamContext = CompletionContext;
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) 
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
     {
         if (NULL != StreamContext)
         {
@@ -992,16 +1048,6 @@ EncryptPostQueryInformation(
     }
 
     if (!StreamContext->FlagExist) 
-    {
-        if (NULL != StreamContext)
-        {
-            FltReleaseContext(StreamContext);
-            StreamContext = NULL;
-        }
-        return FLT_POSTOP_FINISHED_PROCESSING;
-    }
-
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
     {
         if (NULL != StreamContext)
         {
@@ -1030,7 +1076,7 @@ EncryptPostQueryInformation(
     ExReleaseResourceLite(StreamContext->Resource);
     KeLeaveCriticalRegion();
 
-    DbgPrint("[EncryptPostQueryInformation]->FileOffset = %d.\n", FileOffset);
+    //DbgPrint("[EncryptPostQueryInformation]->FileOffset = %d.\n", FileOffset);
 
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
 
@@ -1153,6 +1199,7 @@ EncryptPreSetInformation(
     }
 
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
@@ -1160,8 +1207,8 @@ EncryptPreSetInformation(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) {
-
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
+    {
         if (NULL != StreamContext)
         {
             FltReleaseContext(StreamContext);
@@ -1180,8 +1227,20 @@ EncryptPreSetInformation(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            if (NULL != StreamContext)
+            {
+                FltReleaseContext(StreamContext);
+                StreamContext = NULL;
+            }
+            return FLT_PREOP_COMPLETE;
+        }
         if (NULL != StreamContext)
         {
             FltReleaseContext(StreamContext);
@@ -1190,7 +1249,7 @@ EncryptPreSetInformation(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    DbgPrint("[EncryptPreSetInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
+    //DbgPrint("[EncryptPreSetInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.SetFileInformation.FileInformationClass);
 
     // 4096 -> 3->16      956
 
@@ -1215,7 +1274,7 @@ EncryptPreSetInformation(
             StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
         }
         
-        DbgPrint("[EncryptPreSetInformation]->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        //DbgPrint("[EncryptPreSetInformation]->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FileAllocationInformation:
@@ -1231,7 +1290,7 @@ EncryptPreSetInformation(
             StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
         }
 
-        DbgPrint("EncryptPreSetInformation FileAllocationInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        //DbgPrint("EncryptPreSetInformation FileAllocationInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
 
@@ -1278,13 +1337,14 @@ EncryptPreCleanUp(
 
     //NTSTATUS Status;
     PEPT_STREAM_CONTEXT StreamContext;
+    NTSTATUS Status;
 
     if (!EptCreateContext(&StreamContext, FLT_STREAM_CONTEXT)) {
 
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT)) 
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
     {
         if (NULL != StreamContext)
         {
@@ -1311,8 +1371,15 @@ EncryptPreCleanUp(
         StreamContext = NULL;
     }
 
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -1340,6 +1407,14 @@ EncryptPostCleanUp(
     //DbgPrint("[EncryptPostCleanUp]->hit.\n");
     //DbgPrint("\n");
 
+    
+
+    KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
+
+    /*NTSTATUS Status;
+    Status = KeReadStateEvent(&g_SynchronizationEvent);
+    DbgPrint("PostCleanUp g_SynchronizationEvent state = %d", Status);*/
+
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
@@ -1358,8 +1433,15 @@ EncryptPreClose(
     NTSTATUS Status;
     PEPT_STREAM_CONTEXT StreamContext;
 
-    if (EPT_STATUS_TARGET_MATCH != EptIsTargetProcess(Data))
+    //检查进程权限
+    Status = EptIsTargetProcess(Data);
+
+    if (EPT_PR_ACCESS_READ_WRITE != Status)
     {
+        if (EPT_PR_ACCESS_NO_ACCESS == Status)
+        {
+            return FLT_PREOP_COMPLETE;
+        }
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
@@ -1368,7 +1450,7 @@ EncryptPreClose(
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (!EptGetOrSetContext(Data, FltObjects, &StreamContext, FLT_STREAM_CONTEXT))
+    if (!EptGetOrSetContext(FltObjects->Instance, FltObjects->FileObject, &StreamContext, FLT_STREAM_CONTEXT))
     {
         if (NULL != StreamContext)
         {
@@ -1381,7 +1463,7 @@ EncryptPreClose(
     if (StreamContext->AppendHeader == EPT_TO_APPEND_ENCRYPT_HEADER)
     {
 
-        Status = EptAppendEncryptHeader(FltObjects, StreamContext);
+        Status = EptAppendEncryptHeaderAndEncrypt(FltObjects, StreamContext);
 
         if (EPT_APPEND_ENCRYPT_HEADER == Status)
         {
@@ -1417,6 +1499,7 @@ EncryptPostClose(
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
+
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }

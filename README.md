@@ -43,7 +43,9 @@ Notepad.exe x64
 
 2021.09.12 双向链表遍历时加了共享锁
 
-2021.10.31 处理已存在的未加密文档，将进程加密策略双向链表操作单独放在了LinkedList.c中
+2021.10.31 处理已存在的未加密文档，将进程加密策略双向链表操作单独放在了LinkedList.c中，
+
+2021.11.01 进程设置三种权限，增加特权解密功能（重要）
 
 # 发展方向：
 
@@ -825,3 +827,19 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
     return EPT_APPEND_ENCRYPT_HEADER;
 }
 ```
+
+## 特权解密
+
+这个命令是由客户端传入的，用于把加密的文件，去掉加密头，解密
+
+所以我用事件做了内核线程和PrePost的同步，保证不会同时处理同一个文件
+
+因为是自己创的线程，需要自己找到FileObject和Instance，用FltCreateFile打开FileObject，
+
+通过符号链接，找到卷的DOS名，然后找到卷的Instance。
+
+然后读加密的数据，解密，调整EOF，重新写回文件，这里要把StreamContext的Flag去掉，因为已经是正常的文件了，
+
+最后刷新缓存。主要的功能函数是FileFunc.c的EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
+
+这样就可以完成一个闭环，首先一个加密文件，可以特权解密，然后有写入倾向时，会再写入加密头，加密数据。
