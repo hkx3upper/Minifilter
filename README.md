@@ -838,7 +838,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
 通过符号链接，找到卷的DOS名，然后找到卷的Instance。
 
-然后读加密的数据，解密，调整EOF，重新写回文件，这里要把StreamContext的Flag去掉，因为已经是正常的文件了，
+然后读加密的数据，解密，调整EOF，重新写回文件，这里要把StreamContext的Flag去掉，因为已经是正常的文件
 
 最后刷新缓存。主要的功能函数是FileFunc.c的EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
 
