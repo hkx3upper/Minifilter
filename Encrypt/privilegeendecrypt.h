@@ -4,4 +4,4 @@
 
 extern KEVENT g_SynchronizationEvent;
 
-NTSTATUS EptPrivilegeDecrypt(IN PUNICODE_STRING FileName);
+NTSTATUS EptPrivilegeEnDecrypt(IN PUNICODE_STRING FileName, IN LONG OperType);

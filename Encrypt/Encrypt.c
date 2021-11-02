@@ -679,6 +679,8 @@ EncryptPostCreate(
 
                     return FLT_POSTOP_FINISHED_PROCESSING;
                 }
+                
+                //FileName = \Device\HarddiskVolume3\Desktop\cache.txt
 
                 //取写锁
                 ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
@@ -731,7 +733,7 @@ EncryptPostCreate(
     //到这里说明文件有加密标识头，设置StreamContext标识位
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    StreamContext->FlagExist = 1;
+    StreamContext->FlagExist = EPT_ENCRYPT_FLAG_EXIST;
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -1057,7 +1059,7 @@ EncryptPostQueryInformation(
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    //DbgPrint("[EncryptPostQueryInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
+    DbgPrint("[EncryptPostQueryInformation]->FileInformationClass = %d.\n", Data->Iopb->Parameters.QueryFileInformation.FileInformationClass);
 
     PVOID InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
@@ -1083,8 +1085,9 @@ EncryptPostQueryInformation(
     case FileStandardInformation:
     {
         PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
-        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
         Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
+        Info->AllocationSize.QuadPart = Info->AllocationSize.QuadPart - FILE_FLAG_SIZE;
+        DbgPrint("EncryptPostQueryInformation->AllocationSize = %d EndOfFile = %d.\n", Info->AllocationSize.QuadPart, Info->EndOfFile.QuadPart);
         break;
     }
     case FileAllInformation:
@@ -1122,8 +1125,8 @@ EncryptPostQueryInformation(
     case FileAllocationInformation:
     {
         PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
-        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
-        //DbgPrint("AllocationSize = %d.\n", Info->AllocationSize.QuadPart);
+        Info->AllocationSize.QuadPart = Info->AllocationSize.QuadPart - FILE_FLAG_SIZE;
+        DbgPrint("EncryptPostQueryInformation->FileAllocationInformation AllocationSize = %d.\n", Info->AllocationSize.QuadPart);
         break;
     }
     case FileValidDataLengthInformation:
@@ -1136,6 +1139,7 @@ EncryptPostQueryInformation(
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
         Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
+        DbgPrint("EncryptPostQueryInformation->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FilePositionInformation:
@@ -1160,7 +1164,7 @@ EncryptPostQueryInformation(
     {
         PFILE_NETWORK_OPEN_INFORMATION  Info = (PFILE_NETWORK_OPEN_INFORMATION)InfoBuffer;
         Info->EndOfFile.QuadPart = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE - FileOffset;
-        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;;
+        Info->AllocationSize.QuadPart -= FILE_FLAG_SIZE;
     }
     default:
     {
@@ -1264,33 +1268,48 @@ EncryptPreSetInformation(
     case FileEndOfFileInformation:
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+
+        StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+        
         if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
         {
-            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
             Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
         }
-        else
-        {
-            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
-        }
+
+        DbgPrint("EncryptPreSetInformation->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         
-        //DbgPrint("[EncryptPreSetInformation]->FileEndOfFileInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
         break;
     }
     case FileAllocationInformation:
     {
-        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
-        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
+
+        if (Info->AllocationSize.QuadPart % AES_BLOCK_SIZE != 0)
         {
-            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
-            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
-        }
-        else
-        {
-            StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+            Info->AllocationSize.QuadPart= (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
         }
 
-        //DbgPrint("EncryptPreSetInformation FileAllocationInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        DbgPrint("EncryptPreSetInformation FileAllocationInformation Alloc = %d.\n", Info->AllocationSize.QuadPart);
+        break;
+    }
+    case FileStandardInformation:
+    {
+        PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
+
+        StreamContext->FileSize = Info->EndOfFile.QuadPart - FILE_FLAG_SIZE;
+
+        if (Info->EndOfFile.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+
+        if (Info->AllocationSize.QuadPart % AES_BLOCK_SIZE != 0)
+        {
+            Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        }
+        
+        DbgPrint("EncryptPreSetInformation FileStandardInformation EndOfFile = %d.\n", Info->EndOfFile.QuadPart);
+        DbgPrint("EncryptPreSetInformation FileStandardInformation Alloc = %d.\n", Info->AllocationSize.QuadPart);
         break;
     }
 

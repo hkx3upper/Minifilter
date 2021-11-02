@@ -1,10 +1,12 @@
 
 #include "privilegeendecrypt.h"
+#include "commport.h"
 
 
 KEVENT g_SynchronizationEvent;
 
 KSTART_ROUTINE KRemoveHeaderAndDecrypt;
+KSTART_ROUTINE KRemoveHeaderAndEncrypt;
 
 VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 {
@@ -37,18 +39,64 @@ EXIT:
 	PsTerminateSystemThread(STATUS_SUCCESS);
 }
 
-//因为特权解密的命令是由桌面传入的，和内核的线程要做多线程的同步
-NTSTATUS EptPrivilegeDecrypt(IN PUNICODE_STRING FileName)
-{
-    NTSTATUS Status;
-    HANDLE ThreadHandle = NULL;
-	PVOID ThreadObj = NULL;
 
-	Status = PsCreateSystemThread(&ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, KRemoveHeaderAndDecrypt, (PVOID)FileName->Buffer);
+VOID KRemoveHeaderAndEncrypt(IN PVOID StartContext)
+{
+	NTSTATUS Status;
+	PWCHAR FileName = NULL;
+
+	/*Status = KeReadStateEvent(&g_SynchronizationEvent);
+	DbgPrint("KRemoveHeaderAndDecrypt g_SynchronizationEvent state = %d", Status);*/
+
+	Status = KeWaitForSingleObject(&g_SynchronizationEvent, Executive, KernelMode, FALSE, NULL);
+
+	if (!NT_SUCCESS(Status))
+	{
+		DbgPrint("KRemoveHeaderAndEncrypt->KeWaitForSingleObject failed status = 0x%x.\n", Status);
+		goto EXIT;
+	}
+
+	FileName = (PWCHAR)StartContext;
+
+	Status = EptAppendEncryptHeaderAndEncryptEx(FileName);
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("EptPrivilegeDecrypt->PsCreateSystemThread failed status = 0x%x.\n", Status);
+		DbgPrint("KRemoveHeaderAndEncrypt->EptAppendEncryptHeaderAndEncryptEx failed status = 0x%x.\n", Status);
+		goto EXIT;
+	}
+
+EXIT:
+	KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
+	PsTerminateSystemThread(STATUS_SUCCESS);
+}
+
+
+//因为特权解密的命令是由桌面传入的，和内核的线程要做多线程的同步
+NTSTATUS EptPrivilegeEnDecrypt(IN PUNICODE_STRING FileName, IN LONG OperType)
+{
+	NTSTATUS Status = 0;
+    HANDLE ThreadHandle = NULL;
+	PVOID ThreadObj = NULL;
+
+	if (EPT_PRIVILEGE_DECRYPT == OperType)
+	{
+		Status = PsCreateSystemThread(&ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, KRemoveHeaderAndDecrypt, (PVOID)FileName->Buffer);
+	}
+	else if (EPT_PRIVILEGE_ENCRYPT == OperType)
+	{
+		Status = PsCreateSystemThread(&ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, KRemoveHeaderAndEncrypt, (PVOID)FileName->Buffer);
+	}
+	else
+	{
+		DbgPrint("EptPrivilegeEnDecrypt->Wrong OperType.\n");
+		goto EXIT;
+	}
+
+
+	if (STATUS_SUCCESS != Status)
+	{
+		DbgPrint("EptPrivilegeEnDecrypt->PsCreateSystemThread failed status = 0x%x.\n", Status);
 		goto EXIT;
 	}
 
@@ -56,7 +104,7 @@ NTSTATUS EptPrivilegeDecrypt(IN PUNICODE_STRING FileName)
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("EptPrivilegeDecrypt->ObReferenceObjectByHandle failed ststus = 0x%x.\n", Status);
+		DbgPrint("EptPrivilegeEnDecrypt->ObReferenceObjectByHandle failed ststus = 0x%x.\n", Status);
 		goto EXIT;
 	}
 

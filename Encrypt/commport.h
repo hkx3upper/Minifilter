@@ -9,6 +9,7 @@ VOID EptCloseCommPort();
 #define EPT_HELLO_KERNEL			1
 #define EPT_INSERT_PROCESS_RULES	2
 #define EPT_PRIVILEGE_DECRYPT		4
+#define EPT_PRIVILEGE_ENCRYPT		8
 
 typedef struct EPT_MESSAGE_HEADER
 {

@@ -77,6 +77,7 @@ int main()
 	RtlMoveMemory(ProcessRules.TargetExtension, "txt,c,cpp,", sizeof("txt,c,cpp,"));
 	ProcessRules.count = 3;
 	ProcessRules.Access = EPT_PR_ACCESS_READ_WRITE;
+	ProcessRules.IsCheckHash = FALSE;
 
 	ULONGLONG Hash[4];
 	Hash[0] = 0xa28438e1388f272a;
@@ -107,11 +108,11 @@ int main()
 	}
 
 
-	//发送特权解密命令
+	//发送特权解密/加密命令
 	EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
 
 	memset(Buffer, 0, MESSAGE_SIZE);
-	MessageHeader.Command = EPT_PRIVILEGE_DECRYPT;
+	MessageHeader.Command = EPT_PRIVILEGE_ENCRYPT/*EPT_PRIVILEGE_DECRYPT*/;
 	MessageHeader.Length = sizeof(PrivDecrypt.FileName);
 
 	RtlMoveMemory(PrivDecrypt.FileName, "\\??\\C:\\Desktop\\a.txt", strlen("\\??\\C:\\Desktop\\a.txt"));

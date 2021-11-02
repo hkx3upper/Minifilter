@@ -19,4 +19,6 @@ NTSTATUS EptAppendEncryptHeaderAndEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, I
 
 NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName);
 
+NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName);
+
 VOID EptFileCacheClear(IN PFILE_OBJECT pFileObject);

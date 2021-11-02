@@ -14,6 +14,8 @@ extern PFLT_FILTER gFilterHandle;
 #define EPT_APPEND_ENCRYPT_HEADER       0xFFFFFFF8
 #define EPT_TO_APPEND_ENCRYPT_HEADER    0xFFFFFFF7
 
+#define EPT_ENCRYPT_FLAG_EXIST          0x00000001
+
 /*************************************************************************
     Prototypes
 *************************************************************************/

@@ -396,7 +396,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	ProcessName->MaximumLength = PAGE_SIZE;
 
 	ANSI_STRING AnisProcessName = { 0 };
-	CHAR* p;
+	CHAR* p = NULL;
 
 	if (!EptGetProcessName(Data, ProcessName)) {
 

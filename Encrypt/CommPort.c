@@ -155,11 +155,41 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 				return Status;
 			}
 
-			Status = EptPrivilegeDecrypt(&uFileName);
+			Status = EptPrivilegeEnDecrypt(&uFileName, EPT_PRIVILEGE_DECRYPT);
 
 			if (STATUS_SUCCESS != Status)
 			{
 				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->EptPrivilegeDecrypt failed ststus = 0x%x.\n", Status);
+				break;
+			}
+
+			break;
+		}
+		case EPT_PRIVILEGE_ENCRYPT:
+		{
+			EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
+			ANSI_STRING Ansi = { 0 };
+			UNICODE_STRING uFileName = { 0 };
+
+			RtlMoveMemory(PrivDecrypt.FileName, Buffer + sizeof(EPT_MESSAGE_HEADER), strlen((PCHAR)Buffer + sizeof(EPT_MESSAGE_HEADER)));
+
+			DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT FileName = %s.\n", PrivDecrypt.FileName);
+
+			RtlInitAnsiString(&Ansi, PrivDecrypt.FileName);
+
+			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, TRUE);
+
+			if (STATUS_SUCCESS != Status)
+			{
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
+				return Status;
+			}
+
+			Status = EptPrivilegeEnDecrypt(&uFileName, EPT_PRIVILEGE_ENCRYPT);
+
+			if (STATUS_SUCCESS != Status)
+			{
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT->EptPrivilegeDecrypt failed ststus = 0x%x.\n", Status);
 				break;
 			}
 

@@ -3,13 +3,17 @@
 
 eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/EncryptMinifilter.jpg)
 
-# 运行环境：
+# 运行环境（工具）：
 
 Windows 10 x64
+
+VMware Workstation Pro 16
 
 Visual Studio 2019
 
 Notepad.exe x64
+
+FileSpy.exe x64
 
 # 更新日志：
 
@@ -45,7 +49,7 @@ Notepad.exe x64
 
 2021.10.31 处理已存在的未加密文档，将进程加密策略双向链表操作单独放在了LinkedList.c中，
 
-2021.11.01 进程设置三种权限，增加特权解密功能（重要）
+2021.11.01 进程设置三种权限，增加特权解密功能，特权解密功能（重要）
 
 # 发展方向：
 
@@ -59,9 +63,11 @@ Notepad.exe x64
 
 复制粘贴已加密文件，有一定几率会先进入PreWrite，造成重复加密，导致数据损坏
 
-暂不支持notepad++.exe wps.exe wpp.exe等
+暂不支持notepad++.exe wps.exe wpp.exe等，notepad++的读写方式和正常的不太一样，
 
-已存在的未加密大文件，重新添加加密头，读取源文件时会导致偏移出错，
+我minifilter没有拦截到它的一次IRP_MJ_READ，待我下载它的源码看一看
+
+已存在的未加密大文件，有写入倾向，重新添加加密头，读取源文件时会导致偏移出错，
 
 这是因为大文件不是全部读入缓冲的，只是一部分源文件头+修改后的部分源文件头的格式
 
@@ -843,3 +849,9 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 最后刷新缓存。主要的功能函数是FileFunc.c的EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
 
 这样就可以完成一个闭环，首先一个加密文件，可以特权解密，然后有写入倾向时，会再写入加密头，加密数据。
+
+## 特权加密
+
+特权加密与特权解密类似，就是对于空文件的处理上加了一步。
+
+主要的功能函数是FileFunc.c的EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
