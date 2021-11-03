@@ -572,7 +572,7 @@ EncryptPreCreate(
     }
 
     //判断是否为目标扩展名，进一步筛选，减少后续操作
-    if (!EptIsTargetExtension(Data)) 
+    if (EPT_STATUS_TARGET_MATCH != EptIsTargetExtension(Data))
     {
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
@@ -634,7 +634,7 @@ EncryptPostCreate(
 
     //判断是否为新建的文件，且有写入数据的倾向，有则写入加密标识头
     //如果既不是新建有加密头，又不是已有加密头，说明是目标进程打开的普通文件，结束处理
-    if (EPT_ALREADY_HAVE_ENCRYPT_HEADER != EptIsTargetFile(FltObjects)) 
+    if (EPT_DONT_HAVE_ENCRYPT_HEADER == EptIsTargetFile(FltObjects))
     {
         Status = EptWriteEncryptHeader(&Data, FltObjects);
 
@@ -692,7 +692,7 @@ EncryptPostCreate(
 
                 StreamContext->FileSize = (LONGLONG)EptGetFileSize(FltObjects->Instance, FltObjects->FileObject);
 
-                DbgPrint("PostCreate append encrypt header OrigFileSize = %d", StreamContext->FileSize);
+                DbgPrint("EncryptPostCreate append encrypt header OrigFileSize = %d\n", StreamContext->FileSize);
 
                 ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -995,6 +995,7 @@ EncryptPreQueryInformation(
     {
         return FLT_PREOP_DISALLOW_FASTIO;
     }
+
 
     //检查进程权限
     Status = EptIsTargetProcess(Data);
@@ -1451,6 +1452,7 @@ EncryptPreClose(
 
     NTSTATUS Status;
     PEPT_STREAM_CONTEXT StreamContext;
+
 
     //检查进程权限
     Status = EptIsTargetProcess(Data);

@@ -4,7 +4,7 @@
 #include <wdm.h>
 #include <bcrypt.h>
 
-
+UCHAR* PsGetProcessImageFileName(PEPROCESS EProcess);
 
 NTSTATUS ComputeHash(IN PUCHAR Data, IN ULONG DataLength, IN OUT PUCHAR* DataDigestPointer, IN OUT ULONG* DataDigestLengthPointer)
 {
@@ -375,62 +375,54 @@ BOOLEAN EptGetProcessName(IN PFLT_CALLBACK_DATA Data, IN PUNICODE_STRING Process
 }
 
 
+NTSTATUS EptGetProcessNameEx(IN PFLT_CALLBACK_DATA Data, IN OUT PCHAR ProcessName)
+{
+
+	if (NULL == ProcessName)
+	{
+		DbgPrint("EptGetProcessNameEx->ProcessName is NULL.\n");
+		return EPT_NULL_POINTER;
+	}
+
+	PEPROCESS eProcess;
+
+	eProcess = FltGetRequestorProcess(Data);
+
+	if (!eProcess) {
+
+		DbgPrint("EptGetProcessNameEx->EProcess FltGetRequestorProcess failed.\n.");
+		return STATUS_UNSUCCESSFUL;
+	}
+
+	RtlMoveMemory(ProcessName, PsGetProcessImageFileName(eProcess), strlen((PCHAR)PsGetProcessImageFileName(eProcess)));
+
+
+	return STATUS_SUCCESS;
+
+}
+
+
 //判断是否为加密进程
 NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 {
 
-	if (NULL == Data)
-	{
-		DbgPrint("[EptIsTargetProcess]->Data is NULL.\n");
-		return STATUS_INVALID_PARAMETER;
-	}
-
 	NTSTATUS Status;
-	char Buffer[PAGE_SIZE * sizeof(WCHAR) + sizeof(UNICODE_STRING)], Temp[260];
-	RtlZeroMemory(Buffer, sizeof(Buffer));
-	RtlZeroMemory(Temp, sizeof(Temp));
+	CHAR ProcessName[260] = { 0 };
 
-	PUNICODE_STRING ProcessName = (PUNICODE_STRING)Buffer;
-	ProcessName->Buffer = (WCHAR*)(Buffer + sizeof(UNICODE_STRING));
-	ProcessName->Length = 0;
-	ProcessName->MaximumLength = PAGE_SIZE;
+	Status = EptGetProcessNameEx(Data, ProcessName);
 
-	ANSI_STRING AnisProcessName = { 0 };
-	CHAR* p = NULL;
-
-	if (!EptGetProcessName(Data, ProcessName)) {
-
-		DbgPrint("[EptIsTargetProcess]->EptGetProcessName failed.\n");
-		return FALSE;
-	}
-
-
-	//TRUE为AnsiProcessName分配内存
-	Status = RtlUnicodeStringToAnsiString(&AnisProcessName, ProcessName, TRUE);
-
-	if (!NT_SUCCESS(Status)) {
-
-		DbgPrint("[EptIsTargetProcess]->AnisProcessName RtlUnicodeStringToAnsiString failed. Status = %x\n", Status);
+	if (STATUS_SUCCESS != Status) 
+	{
+		DbgPrint("EptIsTargetProcess->EptGetProcessNameEx failed. Status = 0x%x.\n", Status);
 		return Status;
 	}
 
-
-	//找到进程名
-	p = AnisProcessName.Buffer + AnisProcessName.Length;
-
-	while (*p != '\\' && p > AnisProcessName.Buffer)
-	{
-		p--;
-	}
-
-	if (p != AnisProcessName.Buffer)
-		p++;
 
 	//DbgPrint("[EptIsTargetProcess]->ProcessName = %s.\n", p);
 
 	//遍历链表，取出ProcessName，并比较
 	EPT_PROCESS_RULES ProcessRules = { 0 };
-	RtlMoveMemory(ProcessRules.TargetProcessName, p, strlen(p));
+	RtlMoveMemory(ProcessRules.TargetProcessName, ProcessName, strlen(ProcessName));
 	
 	Status = EptIsPRInLinkedList(&ProcessRules);
 			
@@ -439,7 +431,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 		//CheckHash = TRUE，进入if
 		if (ProcessRules.IsCheckHash)
 		{
-			PUCHAR ReadBuffer = NULL;
+			/*PUCHAR ReadBuffer = NULL;
 			ULONG Length;
 			Status = EptReadProcessFile(*ProcessName, &ReadBuffer, &Length);
 
@@ -462,7 +454,9 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 			{
 				ExFreePool(ReadBuffer);
 				ReadBuffer = NULL;
-			}
+			}*/
+
+			Status = EPT_STATUS_TARGET_MATCH;
 		}
 		else
 		{
@@ -472,15 +466,10 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 
 	if (EPT_STATUS_TARGET_MATCH == Status)
 	{
+		//DbgPrint("EptIsTargetProcess->EptGetProcessNameEx ProcessName = %s.\n", ProcessName);
 		Status = ProcessRules.Access;
 	}
 
-	
-	if (NULL != AnisProcessName.Buffer)
-	{
-		RtlFreeAnsiString(&AnisProcessName);
-		AnisProcessName.Buffer = NULL;
-	}
 
 	return Status;
 
@@ -554,7 +543,7 @@ NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 			{
 				if (RtlEqualUnicodeString(&FileNameInfo->Extension, &Extension, TRUE))
 				{
-					//DbgPrint("[EptIsTargetExtension] Extension is same %ws.\n", Extension.Buffer);
+					//DbgPrint("EptIsTargetExtension->Extension is same %ws.\n", FileNameInfo->Extension);
 
 					Status = EPT_STATUS_TARGET_MATCH;
 
@@ -566,10 +555,7 @@ NTSTATUS EptIsTargetExtension(IN PFLT_CALLBACK_DATA Data)
 
 					break;
 				}
-				else
-				{
-					Status = EPT_STATUS_TARGET_DONT_MATCH;
-				}
+				
 				
 				if (NULL != Extension.Buffer)
 				{

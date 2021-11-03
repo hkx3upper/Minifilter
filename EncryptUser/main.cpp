@@ -112,7 +112,7 @@ int main()
 	EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
 
 	memset(Buffer, 0, MESSAGE_SIZE);
-	MessageHeader.Command = EPT_PRIVILEGE_ENCRYPT/*EPT_PRIVILEGE_DECRYPT*/;
+	MessageHeader.Command = /*EPT_PRIVILEGE_ENCRYPT*/EPT_PRIVILEGE_DECRYPT;
 	MessageHeader.Length = sizeof(PrivDecrypt.FileName);
 
 	RtlMoveMemory(PrivDecrypt.FileName, "\\??\\C:\\Desktop\\a.txt", strlen("\\??\\C:\\Desktop\\a.txt"));

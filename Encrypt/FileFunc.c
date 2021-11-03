@@ -94,7 +94,7 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 
     KEVENT Event;
 
-	PVOID ReadBuffer;
+    PVOID ReadBuffer = NULL;
 	LARGE_INTEGER ByteOffset = { 0 };
 	ULONG Length;
 
@@ -104,21 +104,16 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 
 	if (!NT_SUCCESS(Status)) {
 
-		DbgPrint("[EptIsTargetFile]->FltGetVolumeFromInstance failed. Stattus = %x\n", Status);
-		return FALSE;
+		DbgPrint("EptIsTargetFile->FltGetVolumeFromInstance failed. Status = %x\n", Status);
+        goto EXIT;
 	}
 
 	Status = FltGetVolumeProperties(Volume, &VolumeProps, sizeof(VolumeProps), &Length);
 
-	if (NT_ERROR(Status)) {
-
-        if (NULL != Volume)
-        {
-            FltObjectDereference(Volume);
-            Volume = NULL;
-        }
-		DbgPrint("[DEptIsTargetFile]->FltGetVolumeProperties failed.\n");
-		return FALSE;
+	if (NT_ERROR(Status)) 
+    {
+		DbgPrint("EptIsTargetFile->FltGetVolumeProperties failed. Status = %x\n", Status);
+        goto EXIT;
 	}
 
 	//DbgPrint("VolumeProps.SectorSize = %d.\n", VolumeProps.SectorSize);
@@ -129,15 +124,10 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 	//为FltReadFile分配内存，之后在Buffer中查找Flag
 	ReadBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, PagedPool, Length, 'itRB');
 
-	if (!ReadBuffer) {
-
-        if (NULL != Volume)
-        {
-            FltObjectDereference(Volume);
-            Volume = NULL;
-        }
-		DbgPrint("[EptIsTargetFile]->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n");
-		return FALSE;
+	if (!ReadBuffer) 
+    {
+		DbgPrint("EptIsTargetFile->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n");
+        goto EXIT;
 	}
 
 	RtlZeroMemory(ReadBuffer, Length);
@@ -155,40 +145,27 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
 	if (!NT_SUCCESS(Status)) {
 
         //STATUS_PENDING
-		DbgPrint("EptIsTargetFile FltReadFile failed. Status = %X.\n", Status);
-        if (NULL != Volume)
-        {
-            FltObjectDereference(Volume);
-            Volume = NULL;
-        }
-        if (NULL != ReadBuffer)
-        {
-            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
-            ReadBuffer = NULL;
-        }
+		DbgPrint("EptIsTargetFile->FltReadFile failed. Status = %X.\n", Status);
 		
-		return FALSE;
+        goto EXIT;
 
 	}
 
 	//DbgPrint("EptIsTargetFile Buffer = %p file content = %s.\n", ReadBuffer, (CHAR*)ReadBuffer);
 
-	if (strncmp(FILE_FLAG, ReadBuffer, strlen(FILE_FLAG)) == 0) {
+	if (strncmp(FILE_FLAG, ReadBuffer, strlen(FILE_FLAG)) == 0) 
+    {
+		DbgPrint("EptIsTargetFile->TargetFile is match.\n");
+		Status = EPT_ALREADY_HAVE_ENCRYPT_HEADER;
+    }
+    else
+    {
+        Status = EPT_DONT_HAVE_ENCRYPT_HEADER;
+    }
 
-        if (NULL != Volume)
-        {
-            FltObjectDereference(Volume);
-            Volume = NULL;
-        }
-        if (NULL != ReadBuffer)
-        {
-            FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
-            ReadBuffer = NULL;
-        }
-		DbgPrint("[EptIsTargetFile]->TargetFile is match.\n");
-		return EPT_ALREADY_HAVE_ENCRYPT_HEADER;
-	}
 
+
+EXIT:
     if (NULL != Volume)
     {
         FltObjectDereference(Volume);
@@ -200,7 +177,7 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects)
         FltFreePoolAlignedWithTag(FltObjects->Instance, ReadBuffer, 'itRB');
         ReadBuffer = NULL;
     }
-	return FALSE;
+	return Status;
 }
 
 
@@ -727,7 +704,7 @@ NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
     PFLT_INSTANCE Instance = { 0 };
     ULONG FileSize = 0, SectorSize = 0, ReadLength = 0;
 
-    PCHAR ReadBuffer = NULL;
+    PCHAR ReadBuffer = NULL, EncryptHeader = NULL;
     LARGE_INTEGER ByteOffset;
 
     PEPT_STREAM_CONTEXT StreamContext = NULL;
@@ -781,15 +758,38 @@ NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
         goto EXIT;
     }
 
+
+    //判断是否有加密头
+    EncryptHeader = FltAllocatePoolAlignedWithTag(Instance, PagedPool, FILE_FLAG_SIZE, EPT_READ_BUFFER_FLAG);
+
+    if (NULL == EncryptHeader)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltAllocatePoolAlignedWithTag EncryptHeader failed.\n");
+        goto EXIT;
+    }
+
+    RtlZeroMemory(EncryptHeader, FILE_FLAG_SIZE);
+
+    ByteOffset.QuadPart = 0;
+    Status = FltReadFile(Instance, FileObject, &ByteOffset, (ULONG)FILE_FLAG_SIZE, (PVOID)EncryptHeader,
+        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET | FLTFL_IO_OPERATION_NON_CACHED, NULL, NULL, NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltReadFile read encryptheader failed. Status = %X.\n", Status);
+        goto EXIT;
+    }
+
+    if (strncmp(EncryptHeader, FILE_FLAG, strlen(FILE_FLAG)) != 0)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->%ws is an unencrypted file.\n", FileName);
+        goto EXIT;
+    }
+
+
     //这里的文件大小是加密头0x1000+密文对齐后的大小
     FileSize = EptGetFileSize(Instance, FileObject);
     SectorSize = EptGetVolumeSectorSize(Instance);
-
-    if (FileSize <= FILE_FLAG_SIZE)
-    {
-        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->%ws is a null file.\n", FileName);
-        goto EXIT;
-    }
 
     ReadLength = ROUND_TO_SIZE(FileSize - FILE_FLAG_SIZE, SectorSize);
 
@@ -797,7 +797,7 @@ NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
 
     if (NULL == ReadBuffer)
     {
-        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltAllocatePoolAlignedWithTag failed.\n");
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n");
         goto EXIT;
     }
 
@@ -893,6 +893,12 @@ EXIT:
         ReadBuffer = NULL;
     }
 
+    if (NULL != EncryptHeader)
+    {
+        FltFreePoolAlignedWithTag(Instance, EncryptHeader, EPT_READ_BUFFER_FLAG);
+        EncryptHeader = NULL;
+    }
+
     if (NULL != StreamContext)
     {
         FltReleaseContext(StreamContext);
@@ -903,7 +909,7 @@ EXIT:
 }
 
 
-//特权解密命令，给目标文件加上机密头，加密数据，修改StreamContext
+//特权加密命令，给目标文件加上机密头，加密数据，修改StreamContext
 NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
 {
     NTSTATUS Status;
