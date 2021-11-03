@@ -297,7 +297,7 @@ for (int i = 0; i < ProcessRules.count; i++)
 
 https://www.microsoft.com/en-us/download/details.aspx?id=30688
 
-//需要在微软官网下载Cryptographic Provider Development Kit，
+//需要在微软官网下载Cryptographic Provider Development Kit， 
 //项目->属性的VC++目录的包含目录，库目录设置相应的位置  
 //链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
 //输入->附加依赖项一定要设置为ksecdd.lib  
