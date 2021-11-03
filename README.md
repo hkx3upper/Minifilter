@@ -33,7 +33,7 @@ FileSpy.exe x64
 
 2021.05.16 完善匹配规则，实现双向链表存储
 
-2021.05.19 驱动中实现进程可执行文件的Hash验证（SHA-256）
+2021.05.19 驱动中实现进程可执行文件的Hash验证（SHA-256）（注释掉了）
 
 2021.05.20 解决BCryptEncrypt自动填充数据，但EOF没有改变，导致文件移动后，加密后的填充数据丢失
 
@@ -47,7 +47,7 @@ FileSpy.exe x64
 
 2021.09.12 双向链表遍历时加了共享锁
 
-2021.10.31 处理已存在的未加密文档，将进程加密策略双向链表操作单独放在了LinkedList.c中，
+2021.10.31 处理已存在的未加密文档（有bug未解决），将进程加密策略双向链表操作单独放在了LinkedList.c中，
 
 2021.11.01 进程设置三种权限，增加特权解密功能，特权解密功能（重要）
 
@@ -295,7 +295,10 @@ for (int i = 0; i < ProcessRules.count; i++)
 
 ## AES-128 ECB
 
-//需要在微软官网下载cpdksetup.exe，项目->属性的VC++目录的包含目录，库目录设置相应的位置  
+https://www.microsoft.com/en-us/download/details.aspx?id=30688
+
+//需要在微软官网下载Cryptographic Provider Development Kit，
+//项目->属性的VC++目录的包含目录，库目录设置相应的位置  
 //链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
 //输入->附加依赖项一定要设置为ksecdd.lib  
 
