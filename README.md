@@ -855,7 +855,7 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
 这个命令是由客户端传入的，用于把加密的文件，去掉加密头，解密
 
-所以我用事件做了内核线程和PrePost的同步，保证不会同时处理同一个文件
+所以我用事件做了内核线程和PrePost的同步，保证不会同时处理同一个文件（未完成）
 
 因为是自己创的线程，需要自己找到FileObject和Instance，用FltCreateFile打开FileObject，
 
