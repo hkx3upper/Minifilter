@@ -872,3 +872,9 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 特权加密与特权解密类似，就是对于空文件的处理上加了一步。
 
 主要的功能函数是FileFunc.c的EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
+
+## 2021.11.04
+
+以我现在对于缓冲的理解，还找不到一个合适的位置以及时机，去处理已存在的未加密文档，重新添加加密头，
+
+而且关于在多线程下的文件操作保护，应该要去操作FCB中的锁，现在还不太懂这块
