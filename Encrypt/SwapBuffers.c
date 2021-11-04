@@ -181,13 +181,13 @@ BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
 
     if (NULL == Data)
     {
-        DbgPrint("[PreReadSwapBuffers]->Data is NULL.\n");
+        DbgPrint("PreReadSwapBuffers->Data is NULL.\n");
         return FALSE;
     }
 
     if (NULL == FltObjects)
     {
-        DbgPrint("[PreReadSwapBuffers]->FltObjects is NULL.\n");
+        DbgPrint("PreReadSwapBuffers->FltObjects is NULL.\n");
         return FALSE;
     }
 
@@ -206,7 +206,7 @@ BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
 
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint("VolumeContext FltGetVolumeContext failed!.\n");
+        DbgPrint("PreReadSwapBuffers->VolumeContext FltGetVolumeContext failed!.\n");
         return FALSE;
     }
 
@@ -225,7 +225,7 @@ BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
     SwapReadContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(SWAP_BUFFER_CONTEXT), SWAP_READ_CONTEXT_TAG);
     if (SwapReadContext == NULL)
     {
-        DbgPrint("[PreReadSwapBuffers]->SwapReadContext ExAllocatePoolWithTag failed!\n");
+        DbgPrint("PreReadSwapBuffers->SwapReadContext ExAllocatePoolWithTag failed!\n");
         return FALSE;
     }
 
@@ -235,7 +235,7 @@ BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
     NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, ReadLength, SWAP_READ_BUFFER_TAG);
     if (NewBuffer == NULL)
     {
-        DbgPrint("[PreReadSwapBuffers]->NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
+        DbgPrint("PreReadSwapBuffers->NewBuffer FltAllocatePoolAlignedWithTag failed!\n");
         if (NULL != SwapReadContext)
         {
             ExFreePool(SwapReadContext);
@@ -246,7 +246,7 @@ BOOLEAN PreReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJ
 
     RtlZeroMemory(NewBuffer, ReadLength);
 
-
+    //DbgPrint("PreReadSwapBuffers->(*Data)->Flags = 0x%x", (*Data)->Flags);
 
     //只需要为IRP操作建立MDL，不需要为FASTIO操作
     if (FlagOn((*Data)->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION)) {
@@ -356,9 +356,11 @@ BOOLEAN PostReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
     NewBuffer = SwapReadContext->NewBuffer;
     ReadLength = (ULONG)(*Data)->IoStatus.Information;
 
+    DbgPrint("PostReadSwapBuffers->encrypted text length = %d content = %s", ReadLength, NewBuffer);
+
     if (STATUS_SUCCESS != EptAesDecrypt(NewBuffer, ReadLength))
     {
-        DbgPrint("[PostReadSwapBuffers]->EptAesDecrypt Buffer failed!\n");
+        DbgPrint("PostReadSwapBuffers->EptAesDecrypt Buffer failed!\n");
 
         if (NULL != SwapReadContext->NewBuffer)
         {
@@ -374,8 +376,9 @@ BOOLEAN PostReadSwapBuffers(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OB
 
         return FALSE;
     }
-   
 
+   
+    DbgPrint("PostReadSwapBuffers->decrypted text length = %d content = %s", strlen((PCHAR)NewBuffer), NewBuffer);
 
 
     try

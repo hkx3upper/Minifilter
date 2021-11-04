@@ -6,6 +6,7 @@
 
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
+WCHAR g_wFileName[260] = { 0 };
 
 NTSTATUS ConnectNotifyCallback(IN PFLT_PORT ClientPort, IN PVOID ServerPortCookie, IN PVOID ConnectionContext, IN ULONG SizeOfContext, IN PVOID* ConnectionPortCookie)
 {
@@ -141,13 +142,17 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			ANSI_STRING Ansi = { 0 };
 			UNICODE_STRING uFileName = { 0 };
 
+			uFileName.MaximumLength = sizeof(g_wFileName);
+			RtlZeroMemory(g_wFileName, sizeof(g_wFileName));
+			uFileName.Buffer = g_wFileName;
+
 			RtlMoveMemory(PrivDecrypt.FileName, Buffer + sizeof(EPT_MESSAGE_HEADER), strlen((PCHAR)Buffer + sizeof(EPT_MESSAGE_HEADER)));
 
 			DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT FileName = %s.\n", PrivDecrypt.FileName);
 
 			RtlInitAnsiString(&Ansi, PrivDecrypt.FileName);
 
-			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, TRUE);
+			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, FALSE);
 
 			if (STATUS_SUCCESS != Status)
 			{
@@ -159,7 +164,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 			if (STATUS_SUCCESS != Status)
 			{
-				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->EptPrivilegeDecrypt failed ststus = 0x%x.\n", Status);
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->EptPrivilegeEnDecrypt failed status = 0x%x.\n", Status);
 				break;
 			}
 
@@ -171,13 +176,17 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			ANSI_STRING Ansi = { 0 };
 			UNICODE_STRING uFileName = { 0 };
 
+			uFileName.MaximumLength = sizeof(g_wFileName);
+			RtlZeroMemory(g_wFileName, sizeof(g_wFileName));
+			uFileName.Buffer = g_wFileName;
+
 			RtlMoveMemory(PrivDecrypt.FileName, Buffer + sizeof(EPT_MESSAGE_HEADER), strlen((PCHAR)Buffer + sizeof(EPT_MESSAGE_HEADER)));
 
 			DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT FileName = %s.\n", PrivDecrypt.FileName);
 
 			RtlInitAnsiString(&Ansi, PrivDecrypt.FileName);
 
-			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, TRUE);
+			Status = RtlAnsiStringToUnicodeString(&uFileName, &Ansi, FALSE);
 
 			if (STATUS_SUCCESS != Status)
 			{
@@ -189,7 +198,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 			if (STATUS_SUCCESS != Status)
 			{
-				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT->EptPrivilegeDecrypt failed ststus = 0x%x.\n", Status);
+				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT->EptPrivilegeEnDecrypt failed status = 0x%x.\n", Status);
 				break;
 			}
 

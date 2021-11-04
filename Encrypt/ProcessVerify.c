@@ -1,6 +1,7 @@
 
 #include "processverify.h"
 #include "linkedList.h"
+#include "filefunc.h"
 #include <wdm.h>
 #include <bcrypt.h>
 
@@ -414,7 +415,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	if (STATUS_SUCCESS != Status) 
 	{
 		DbgPrint("EptIsTargetProcess->EptGetProcessNameEx failed. Status = 0x%x.\n", Status);
-		return Status;
+		return EPT_STATUS_TARGET_DONT_MATCH;
 	}
 
 
@@ -428,6 +429,7 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 			
 	if (EPT_STATUS_TARGET_MATCH == Status)
 	{
+		//这里ProcessName需要进程的完整路径名，所以先不做了
 		//CheckHash = TRUE，进入if
 		if (ProcessRules.IsCheckHash)
 		{
@@ -468,6 +470,16 @@ NTSTATUS EptIsTargetProcess(IN PFLT_CALLBACK_DATA Data)
 	{
 		//DbgPrint("EptIsTargetProcess->EptGetProcessNameEx ProcessName = %s.\n", ProcessName);
 		Status = ProcessRules.Access;
+
+		CHAR CapTargetName[260] = { 0 };
+		RtlMoveMemory(CapTargetName, ProcessRules.TargetProcessName, strlen(ProcessRules.TargetProcessName));
+		RtlMoveMemory(CapTargetName, _strupr(CapTargetName), strlen(_strupr(CapTargetName)));
+
+		if (!strncmp(CapTargetName, "NOTEPAD++.EXE", strlen("NOTEPAD++.EXE")))
+		{
+			Status = Status | EPT_PR_NOTEPAD_PLUS_PLUS;
+		}
+		
 	}
 
 

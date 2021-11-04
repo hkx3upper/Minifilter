@@ -20,7 +20,7 @@ BOOLEAN EptAesInithKey()
 
 	RtlZeroMemory(&AesInitVar, sizeof(AES_INIT_VARIABLES));
 
-	Status = BCryptOpenAlgorithmProvider(&AesInitVar.hAesAlg, BCRYPT_AES_ALGORITHM, NULL, 0);
+	Status = BCryptOpenAlgorithmProvider(&AesInitVar.hAesAlg, BCRYPT_AES_ALGORITHM, NULL, BCRYPT_PROV_DISPATCH);
 
 	if (!NT_SUCCESS(Status))
 	{
@@ -37,7 +37,7 @@ BOOLEAN EptAesInithKey()
 		return FALSE;
 	}
 
-	AesInitVar.pbKeyObject = ExAllocatePoolWithTag(PagedPool, cbKeyObject, KEY_BOJECT_BUFFER);
+	AesInitVar.pbKeyObject = ExAllocatePoolWithTag(NonPagedPool, cbKeyObject, KEY_BOJECT_BUFFER);
 
 	if (!AesInitVar.pbKeyObject)
 	{
@@ -109,7 +109,7 @@ BOOLEAN EptAesEncrypt(IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOO
 
 	if (NULL == Buffer)
 	{
-		DbgPrint("[EptAesEncrypt]->Buffer is NULL.\n");
+		DbgPrint("EptAesEncrypt->Buffer is NULL.\n");
 		return FALSE;
 	}
 
@@ -125,11 +125,11 @@ BOOLEAN EptAesEncrypt(IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOO
 	//DbgPrint("OrigLength = %d.\n", OrigLength);
 
 
-	PUCHAR TempBuffer = ExAllocatePoolWithTag(PagedPool, OrigLength, ENCRYPT_TEMP_BUFFER);
+	PUCHAR TempBuffer = ExAllocatePoolWithTag(NonPagedPool, OrigLength, ENCRYPT_TEMP_BUFFER);
 
 	if (!TempBuffer)
 	{
-		DbgPrint("[EptAesEncrypt]->ExAllocatePoolWithTag TempBuffer failed.\n");
+		DbgPrint("EptAesEncrypt->ExAllocatePoolWithTag TempBuffer failed.\n");
 		return FALSE;
 	}
 
@@ -147,12 +147,12 @@ BOOLEAN EptAesEncrypt(IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOO
 
 		if (!NT_SUCCESS(Status))
 		{
-			DbgPrint("[EptAesEncrypt]->BCryptEncrypt get encrypted buffer size failed. Status = %X.\n", Status);
+			DbgPrint("EptAesEncrypt->BCryptEncrypt get encrypted buffer size failed. Status = %X.\n", Status);
 			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
 			return FALSE;
 		}
 
-		DbgPrint("[EptAesEncrypt]->Buffer OrigLength = %d LengthReturned = %d.\n", OrigLength, *LengthReturned);
+		DbgPrint("EptAesEncrypt->Buffer OrigLength = %d LengthReturned = %d.\n", OrigLength, *LengthReturned);
 
 		if (NULL != TempBuffer)
 		{
@@ -167,7 +167,8 @@ BOOLEAN EptAesEncrypt(IN OUT PUCHAR Buffer, IN OUT ULONG* LengthReturned, IN BOO
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("[EptAesEncrypt]->BCryptEncrypt failed. Status = %X.\n", Status);
+		DbgPrint("EptAesEncrypt->BCryptEncrypt failed. Status = %X.\n", Status);
+		//STATUS_SUCCESS
 		if (NULL != TempBuffer)
 		{
 			ExFreePoolWithTag(TempBuffer, ENCRYPT_TEMP_BUFFER);
@@ -211,7 +212,7 @@ NTSTATUS EptAesDecrypt(IN OUT PUCHAR Buffer, IN ULONG Length)
 
 	BufferSize = ROUND_TO_SIZE(Length, PAGE_SIZE);
 
-	PUCHAR TempBuffer = ExAllocatePoolWithTag(PagedPool, Length, ENCRYPT_TEMP_BUFFER);
+	PUCHAR TempBuffer = ExAllocatePoolWithTag(NonPagedPool, Length, ENCRYPT_TEMP_BUFFER);
 
 	if (!TempBuffer)
 	{

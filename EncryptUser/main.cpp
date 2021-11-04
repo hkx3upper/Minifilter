@@ -112,7 +112,7 @@ int main()
 	EPT_MESSAGE_PRIV_DECRYPT PrivDecrypt = { 0 };
 
 	memset(Buffer, 0, MESSAGE_SIZE);
-	MessageHeader.Command = /*EPT_PRIVILEGE_ENCRYPT*/EPT_PRIVILEGE_DECRYPT;
+	MessageHeader.Command = EPT_PRIVILEGE_DECRYPT;
 	MessageHeader.Length = sizeof(PrivDecrypt.FileName);
 
 	RtlMoveMemory(PrivDecrypt.FileName, "\\??\\C:\\Desktop\\a.txt", strlen("\\??\\C:\\Desktop\\a.txt"));
@@ -127,6 +127,25 @@ int main()
 	}
 
 	system("pause");
+
+	
+
+	memset(Buffer, 0, MESSAGE_SIZE);
+	MessageHeader.Command = EPT_PRIVILEGE_ENCRYPT;
+	MessageHeader.Length = sizeof(PrivDecrypt.FileName);
+
+	RtlZeroMemory(PrivDecrypt.FileName, sizeof(PrivDecrypt.FileName));
+
+	RtlMoveMemory(PrivDecrypt.FileName, "\\??\\C:\\Desktop\\a.txt", strlen("\\??\\C:\\Desktop\\a.txt"));
+
+	RtlMoveMemory(Buffer, &MessageHeader, sizeof(MessageHeader));
+	RtlMoveMemory(Buffer + sizeof(MessageHeader), &PrivDecrypt, sizeof(EPT_MESSAGE_PRIV_DECRYPT));
+
+	if (!EptUserSendMessage(Buffer))
+	{
+		printf("EptUserSendMessage failed.\n");
+		return 0;
+	}
 
 	return 0;
 }

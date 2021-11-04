@@ -6,7 +6,7 @@
 KEVENT g_SynchronizationEvent;
 
 KSTART_ROUTINE KRemoveHeaderAndDecrypt;
-KSTART_ROUTINE KRemoveHeaderAndEncrypt;
+KSTART_ROUTINE KAppendHeaderAndEncrypt;
 
 VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 {
@@ -17,6 +17,8 @@ VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 	DbgPrint("KRemoveHeaderAndDecrypt g_SynchronizationEvent state = %d", Status);*/
 
 	Status = KeWaitForSingleObject(&g_SynchronizationEvent, Executive, KernelMode, FALSE, NULL);
+
+	DbgPrint("\nKRemoveHeaderAndDecrypt->start.\n\n");
 
 	if (!NT_SUCCESS(Status))
 	{
@@ -36,11 +38,11 @@ VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 
 EXIT:
 	KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
-	PsTerminateSystemThread(STATUS_SUCCESS);
+	PsTerminateSystemThread(Status);
 }
 
 
-VOID KRemoveHeaderAndEncrypt(IN PVOID StartContext)
+VOID KAppendHeaderAndEncrypt(IN PVOID StartContext)
 {
 	NTSTATUS Status;
 	PWCHAR FileName = NULL;
@@ -49,6 +51,8 @@ VOID KRemoveHeaderAndEncrypt(IN PVOID StartContext)
 	DbgPrint("KRemoveHeaderAndDecrypt g_SynchronizationEvent state = %d", Status);*/
 
 	Status = KeWaitForSingleObject(&g_SynchronizationEvent, Executive, KernelMode, FALSE, NULL);
+
+	DbgPrint("\nKRemoveHeaderAndEncrypt->start.\n\n");
 
 	if (!NT_SUCCESS(Status))
 	{
@@ -68,7 +72,8 @@ VOID KRemoveHeaderAndEncrypt(IN PVOID StartContext)
 
 EXIT:
 	KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
-	PsTerminateSystemThread(STATUS_SUCCESS);
+	DbgPrint("\nKRemoveHeaderAndEncrypt->KeSetEvent.\n\n");
+	PsTerminateSystemThread(Status);
 }
 
 
@@ -85,7 +90,7 @@ NTSTATUS EptPrivilegeEnDecrypt(IN PUNICODE_STRING FileName, IN LONG OperType)
 	}
 	else if (EPT_PRIVILEGE_ENCRYPT == OperType)
 	{
-		Status = PsCreateSystemThread(&ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, KRemoveHeaderAndEncrypt, (PVOID)FileName->Buffer);
+		Status = PsCreateSystemThread(&ThreadHandle, THREAD_ALL_ACCESS, NULL, NULL, NULL, KAppendHeaderAndEncrypt, (PVOID)FileName->Buffer);
 	}
 	else
 	{
@@ -109,9 +114,8 @@ NTSTATUS EptPrivilegeEnDecrypt(IN PUNICODE_STRING FileName, IN LONG OperType)
 	}
 
 	//等待进程结束再返回 FileName
-	KeWaitForSingleObject(ThreadObj, Executive, KernelMode, FALSE, NULL);
-
-	ObDereferenceObject(ThreadObj);
+	//KeWaitForSingleObject(ThreadObj, Executive, KernelMode, FALSE, NULL);
+	
 
 EXIT:
 	if (NULL != ThreadHandle)
@@ -120,10 +124,16 @@ EXIT:
 		ThreadHandle = NULL;
 	}
 
-	if (NULL != FileName->Buffer)
+	/*if (NULL != FileName->Buffer)
 	{
 		RtlFreeUnicodeString(FileName);
 		FileName->Buffer = NULL;
+	}*/
+
+	if (NULL != ThreadObj)
+	{
+		ObDereferenceObject(ThreadObj);
+		ThreadObj = NULL;
 	}
 
 	return Status;

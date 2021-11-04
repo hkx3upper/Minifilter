@@ -6,7 +6,7 @@
 extern PFLT_FILTER gFilterHandle;
 
 #define EPT_STATUS_TARGET_MATCH			0xFFFFFFFE
-#define EPT_STATUS_TARGET_DONT_MATCH	0xFFFFFFFD
+#define EPT_STATUS_TARGET_DONT_MATCH	0x00000000
 #define EPT_NULL_POINTER                0xFFFFFFFC
 #define EPT_WRITE_ENCRYPT_HEADER        0xFFFFFFFB
 #define EPT_ALREADY_HAVE_ENCRYPT_HEADER 0xFFFFFFFA
@@ -16,6 +16,8 @@ extern PFLT_FILTER gFilterHandle;
 #define EPT_DONT_HAVE_ENCRYPT_HEADER    0xFFFFFFF6
 
 #define EPT_ENCRYPT_FLAG_EXIST          0x00000001
+
+#define EPT_NOTEPAD_PLUS_PLUS_IRP_FLAG  0x00060900
 
 /*************************************************************************
     Prototypes
