@@ -877,4 +877,6 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
 以我现在对于缓冲的理解，还找不到一个合适的位置以及时机，去处理已存在的未加密文档，重新添加加密头，
 
+不同于特权加解密，写入加密头的同时，notepad也正在写入数据，这两块数据的同步，这一块还不懂
+
 而且关于在多线程下的文件操作保护，应该要去操作FCB中的锁，现在还不太懂这块
