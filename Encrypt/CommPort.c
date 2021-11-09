@@ -104,7 +104,8 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			{
 				if (!strncmp(ProcessRules->TargetExtension, TempPR.TargetExtension, sizeof(ProcessRules->TargetExtension)) &&
 					!strncmp((PCHAR)ProcessRules->Hash, (PCHAR)TempPR.Hash, sizeof(ProcessRules->Hash)) &&
-					ProcessRules->IsCheckHash == TempPR.IsCheckHash)
+					ProcessRules->IsCheckHash == TempPR.IsCheckHash &&
+					ProcessRules->Access == TempPR.Access)
 				{
 					DbgPrint("MessageNotifyCallback->%s PR already exsits.\n", ProcessRules->TargetProcessName);
 
