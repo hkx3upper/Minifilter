@@ -5,8 +5,6 @@ eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Encry
 
 eg：![界面1](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Panel.PNG)
 
-eg：![界面2](https://github.com/hkx3upper/Minifilter/blob/main/Resources/AddPR.PNG)
-
 # 简述：
 
 这个项目主要实现了一个简单的DLP(Data leakage prevention)，每当目标进程创建目标扩展名的文件，
