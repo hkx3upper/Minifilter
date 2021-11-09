@@ -1,19 +1,11 @@
 # Minifilter
 参考《Windows内核安全与驱动开发》的加密解密Minifilter
 
-eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/EncryptMinifilter.jpg)
+eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/Resources/EncryptMinifilter.jpg)
 
-# 运行环境（工具）：
+eg：![界面1](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Panel.PNG)
 
-Windows 10 x64
-
-VMware Workstation Pro 16
-
-Visual Studio 2019
-
-Notepad.exe x64
-
-FileSpy.exe x64
+eg：![界面2](https://github.com/hkx3upper/Minifilter/blob/main/Resources/AddPR.PNG)
 
 # 简述：
 
@@ -26,6 +18,18 @@ FileSpy.exe x64
 并且，可以通过C#的界面进行进程策略配置，以及对一个非空且未加密文件进行特权加密，
 
 或者对一个已加密文件进行特权解密，这样可以将该文件纳入驱动控制的范围内。
+
+# 运行环境（工具）：
+
+Windows 10 x64
+
+VMware Workstation Pro 16
+
+Visual Studio 2019
+
+Notepad.exe x64
+
+FileSpy.exe x64
 
 # 更新日志：
 
