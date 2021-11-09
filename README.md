@@ -908,4 +908,4 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 
 ## 2021.11.09 新增C# WPF框架的界面，通过调用dll和内核通信
 
-实现了特权加密，特权解密和配置进程策略的功能
+实现了特权加密，特权解密和配置进程策略的功能，对驱动的返回值进行判断
