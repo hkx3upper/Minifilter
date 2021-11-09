@@ -23,6 +23,7 @@ Environment:
 #include "processverify.h"
 #include "linkedList.h"
 #include "privilegeendecrypt.h"
+#include "commport.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 

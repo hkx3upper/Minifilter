@@ -25,4 +25,6 @@ typedef struct EPT_MESSAGE_PRIV_DECRYPT
 }EPT_MESSAGE_PRIV_DECRYPT, * PEPT_MESSAGE_PRIV_DECRYPT;
 
 extern WCHAR g_wFileName[260];
+extern PFLT_PORT gClientPort;
+
 

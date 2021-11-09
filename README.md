@@ -56,9 +56,11 @@ FileSpy.exe x64
 
 2021.11.04 代码回滚，去掉了10.31号的处理已存在的未加密文档操作
 
-# 发展方向：
+2021.11.08 新增桌面和内核通信函数封装的dll
 
-写界面 C# 配置策略 特权加密 特权解密
+2021.11.09 新增C# WPF框架的界面，通过调用dll和内核通信
+
+# 发展方向：
 
 接下来将会考虑双缓冲方面的问题（LayerFsd或者像Dokany一样FUSE用户空间）；
 
@@ -881,3 +883,15 @@ NTSTATUS EptAppendEncryptHeader(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT
 不同于特权加解密，写入加密头的同时，notepad也正在写入数据，这两块数据的同步，这一块还不懂
 
 而且关于在多线程下的文件操作保护，应该要去操作FCB中的锁，现在还不太懂这块
+
+## 2021.11.08 新增桌面和内核通信函数封装的dll
+
+注意FilterGetMessage的用法，需要加FILTER_MESSAGE_HEADER头，另外注意不要和FltSendMessage造成死锁
+
+还有，这个函数桌面端的返回值，我查不到......
+
+不再在dll的DLL_PROCESS_ATTACH中初始化端口，换到C#中了
+
+## 2021.11.09 新增C# WPF框架的界面，通过调用dll和内核通信
+
+实现了特权加密，特权解密和配置进程策略的功能

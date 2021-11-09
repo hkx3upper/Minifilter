@@ -30,7 +30,7 @@ VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 
 	Status = EptRemoveEncryptHeaderAndDecrypt(FileName);
 
-	if (STATUS_SUCCESS != Status)
+	if (EPT_REMOVE_ENCRYPT_HEADER != Status)
 	{
 		DbgPrint("KRemoveHeaderAndDecrypt->EptRemoveEncryptHeaderAndDecrypt failed status = 0x%x.\n", Status);
 		goto EXIT;
@@ -38,6 +38,21 @@ VOID KRemoveHeaderAndDecrypt(IN PVOID StartContext)
 
 EXIT:
 	KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
+
+	EPT_MESSAGE_HEADER SendBuffer = { 0 };
+	SendBuffer.Command = Status;
+
+	Status = FltSendMessage(gFilterHandle, &gClientPort, &SendBuffer, sizeof(EPT_MESSAGE_HEADER), NULL, NULL, NULL);
+
+	if (STATUS_SUCCESS != Status)
+	{
+		DbgPrint("KRemoveHeaderAndDecrypt->FltSendMessage failed status = 0x%x.\n", Status);
+	}
+	else
+	{
+		DbgPrint("KRemoveHeaderAndDecrypt->FltSendMessage success.\n");
+	}
+
 	PsTerminateSystemThread(Status);
 }
 
@@ -52,11 +67,11 @@ VOID KAppendHeaderAndEncrypt(IN PVOID StartContext)
 
 	Status = KeWaitForSingleObject(&g_SynchronizationEvent, Executive, KernelMode, FALSE, NULL);
 
-	DbgPrint("\nKRemoveHeaderAndEncrypt->start.\n\n");
+	DbgPrint("\nKAppendHeaderAndEncrypt->start.\n\n");
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("KRemoveHeaderAndEncrypt->KeWaitForSingleObject failed status = 0x%x.\n", Status);
+		DbgPrint("KAppendHeaderAndEncrypt->KeWaitForSingleObject failed status = 0x%x.\n", Status);
 		goto EXIT;
 	}
 
@@ -64,22 +79,44 @@ VOID KAppendHeaderAndEncrypt(IN PVOID StartContext)
 
 	Status = EptAppendEncryptHeaderAndEncryptEx(FileName);
 
-	if (STATUS_SUCCESS != Status)
+	if (EPT_APPEND_ENCRYPT_HEADER != Status)
 	{
-		DbgPrint("KRemoveHeaderAndEncrypt->EptAppendEncryptHeaderAndEncryptEx failed status = 0x%x.\n", Status);
+		DbgPrint("KAppendHeaderAndEncrypt->EptAppendEncryptHeaderAndEncryptEx failed status = 0x%x.\n", Status);
 		goto EXIT;
 	}
 
+
 EXIT:
 	KeSetEvent(&g_SynchronizationEvent, IO_NO_INCREMENT, FALSE);
-	DbgPrint("\nKRemoveHeaderAndEncrypt->KeSetEvent.\n\n");
-	PsTerminateSystemThread(Status);
+	DbgPrint("\nKAppendHeaderAndEncrypt->KeSetEvent.\n\n");
+
+	EPT_MESSAGE_HEADER SendBuffer = { 0 };
+	SendBuffer.Command = Status;
+
+	Status = FltSendMessage(gFilterHandle, &gClientPort, &SendBuffer, sizeof(EPT_MESSAGE_HEADER), NULL, NULL, NULL);
+
+	if (STATUS_SUCCESS != Status)
+	{
+		DbgPrint("KAppendHeaderAndEncrypt->FltSendMessage failed status = 0x%x.\n", Status);
+	}
+	else
+	{
+		DbgPrint("KAppendHeaderAndEncrypt->FltSendMessage success.\n");
+	}
+
+	PsTerminateSystemThread(STATUS_SUCCESS);
 }
 
 
 //因为特权解密的命令是由桌面传入的，和内核的线程要做多线程的同步
 NTSTATUS EptPrivilegeEnDecrypt(IN PUNICODE_STRING FileName, IN LONG OperType)
 {
+	if (NULL == FileName)
+	{
+		DbgPrint("EptPrivilegeEnDecrypt->FileName is NULL.\n");
+		return EPT_NULL_POINTER;
+	}
+
 	NTSTATUS Status = 0;
     HANDLE ThreadHandle = NULL;
 	PVOID ThreadObj = NULL;

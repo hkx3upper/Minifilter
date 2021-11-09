@@ -5,23 +5,31 @@ VisualStudioVersion = 16.0.31025.194
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Encrypt", "Encrypt\Encrypt.vcxproj", "{86875795-45FC-45D3-8029-F30597CA2973}"
 	ProjectSection(ProjectDependencies) = postProject
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD} = {7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB} = {AF4294E0-2350-4214-8CE2-3E8206803ABB}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EncryptUser", "EncryptUser\EncryptUser.vcxproj", "{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EncryptUser(.net_WFP)", "EncryptUser(.net_WFP)\EncryptUser(.net_WFP).csproj", "{AF4294E0-2350-4214-8CE2-3E8206803ABB}"
+	ProjectSection(ProjectDependencies) = postProject
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC} = {E1E23B2D-873D-4526-A2D4-6E10C2D202AC}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "EncryptUserDLL", "EncryptUserDLL\EncryptUserDLL.vcxproj", "{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
 		Debug|ARM = Debug|ARM
 		Debug|ARM64 = Debug|ARM64
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
 		Release|ARM = Release|ARM
 		Release|ARM64 = Release|ARM64
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|ARM.ActiveCfg = Debug|ARM
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|ARM.Build.0 = Debug|ARM
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|ARM.Deploy.0 = Debug|ARM
@@ -34,6 +42,7 @@ Global
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|x86.ActiveCfg = Debug|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|x86.Build.0 = Debug|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Debug|x86.Deploy.0 = Debug|Win32
+		{86875795-45FC-45D3-8029-F30597CA2973}.Release|Any CPU.ActiveCfg = Release|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|ARM.ActiveCfg = Release|ARM
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|ARM.Build.0 = Release|ARM
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|ARM.Deploy.0 = Release|ARM
@@ -46,18 +55,40 @@ Global
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.ActiveCfg = Release|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.Build.0 = Release|Win32
 		{86875795-45FC-45D3-8029-F30597CA2973}.Release|x86.Deploy.0 = Release|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|ARM.ActiveCfg = Debug|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|ARM64.ActiveCfg = Debug|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x64.ActiveCfg = Debug|x64
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x64.Build.0 = Debug|x64
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x86.ActiveCfg = Debug|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Debug|x86.Build.0 = Debug|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|ARM.ActiveCfg = Release|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|ARM64.ActiveCfg = Release|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x64.ActiveCfg = Release|x64
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x64.Build.0 = Release|x64
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x86.ActiveCfg = Release|Win32
-		{7AD7E8EC-65ED-4302-86DF-F8A8FEF9ACBD}.Release|x86.Build.0 = Release|Win32
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|ARM.Build.0 = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|x64.Build.0 = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Debug|x86.Build.0 = Debug|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|ARM.ActiveCfg = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|ARM.Build.0 = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|ARM64.Build.0 = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|x64.ActiveCfg = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|x64.Build.0 = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|x86.ActiveCfg = Release|Any CPU
+		{AF4294E0-2350-4214-8CE2-3E8206803ABB}.Release|x86.Build.0 = Release|Any CPU
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|ARM.ActiveCfg = Debug|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|x64.ActiveCfg = Debug|x64
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|x64.Build.0 = Debug|x64
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|x86.ActiveCfg = Debug|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Debug|x86.Build.0 = Debug|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|Any CPU.ActiveCfg = Release|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|ARM.ActiveCfg = Release|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|ARM64.ActiveCfg = Release|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|x64.ActiveCfg = Release|x64
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|x64.Build.0 = Release|x64
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|x86.ActiveCfg = Release|Win32
+		{E1E23B2D-873D-4526-A2D4-6E10C2D202AC}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

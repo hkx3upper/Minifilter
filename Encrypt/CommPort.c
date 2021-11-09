@@ -1,4 +1,5 @@
 
+#pragma warning(disable:4996)
 #include "commport.h"
 #include "processverify.h"
 #include "linkedList.h"
@@ -7,6 +8,7 @@
 PFLT_PORT gServerPort;
 PFLT_PORT gClientPort;
 WCHAR g_wFileName[260] = { 0 };
+
 
 NTSTATUS ConnectNotifyCallback(IN PFLT_PORT ClientPort, IN PVOID ServerPortCookie, IN PVOID ConnectionContext, IN ULONG SizeOfContext, IN PVOID* ConnectionPortCookie)
 {
@@ -18,7 +20,7 @@ NTSTATUS ConnectNotifyCallback(IN PFLT_PORT ClientPort, IN PVOID ServerPortCooki
 
 	PAGED_CODE();
 
-	DbgPrint("[ConnectNotifyCallback]->connect with user.\n");
+	DbgPrint("ConnectNotifyCallback->connect with user.\n");
 
 	gClientPort = ClientPort;
 
@@ -32,7 +34,7 @@ VOID DisconnectNotifyCallback(IN PVOID ConnectionCookie)
 
 	PAGED_CODE();
 
-	DbgPrint("[DisconnectNotifyCallback]->disconnect with user.\n");
+	DbgPrint("DisconnectNotifyCallback->disconnect with user.\n");
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
@@ -111,6 +113,20 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 						ExFreePoolWithTag(ProcessRules, PROCESS_RULES_BUFFER_TAG);
 						ProcessRules = NULL;
 					}
+
+					Status = EPT_SAME_PR_ALREADY_EXISTS;
+
+					EPT_MESSAGE_HEADER SendBuffer = { 0 };
+					SendBuffer.Command = Status;
+					Status = FltSendMessage(gFilterHandle, &gClientPort, &SendBuffer, sizeof(EPT_MESSAGE_HEADER), NULL, NULL, NULL);
+					if (STATUS_SUCCESS != Status)
+					{
+						DbgPrint("MessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status);
+					}
+					else
+					{
+						DbgPrint("MessageNotifyCallback->FltSendMessage success.\n");
+					}
 					
 					break;
 				}
@@ -123,7 +139,32 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 					if (STATUS_SUCCESS != Status)
 					{
 						DbgPrint("MessageNotifyCallback->EptReplacePRInLinkedList %s failed.\n", ProcessRules->TargetProcessName);
-						return Status;
+						if (NULL != ProcessRules)
+						{
+							ExFreePoolWithTag(ProcessRules, PROCESS_RULES_BUFFER_TAG);
+							ProcessRules = NULL;
+						}
+						break;
+					}
+
+					if (NULL != ProcessRules)
+					{
+						ExFreePoolWithTag(ProcessRules, PROCESS_RULES_BUFFER_TAG);
+						ProcessRules = NULL;
+					}
+
+					Status = EPT_UPDATE_PR;
+
+					EPT_MESSAGE_HEADER SendBuffer = { 0 };
+					SendBuffer.Command = Status;
+					Status = FltSendMessage(gFilterHandle, &gClientPort, &SendBuffer, sizeof(EPT_MESSAGE_HEADER), NULL, NULL, NULL);
+					if (STATUS_SUCCESS != Status)
+					{
+						DbgPrint("MessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status);
+					}
+					else
+					{
+						DbgPrint("MessageNotifyCallback->FltSendMessage success.\n");
 					}
 
 					break;
@@ -133,6 +174,20 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 
 			DbgPrint("MessageNotifyCallback->InsertTailList ProcessRules->TargetProcessName = %s.\n", ProcessRules->TargetProcessName);
 			ExInterlockedInsertTailList(&ProcessRulesListHead, &ProcessRules->ListEntry, &ProcessRulesListSpinLock);
+
+			Status = EPT_INSERT_PR;
+
+			EPT_MESSAGE_HEADER SendBuffer = { 0 };
+			SendBuffer.Command = Status;
+			Status = FltSendMessage(gFilterHandle, &gClientPort, &SendBuffer, sizeof(EPT_MESSAGE_HEADER), NULL, NULL, NULL);
+			if (STATUS_SUCCESS != Status)
+			{
+				DbgPrint("MessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status);
+			}
+			else
+			{
+				DbgPrint("MessageNotifyCallback->FltSendMessage success.\n");
+			}
 
 			break;
 		}
@@ -157,7 +212,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			if (STATUS_SUCCESS != Status)
 			{
 				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
-				return Status;
+				/*return Status;*/
 			}
 
 			Status = EptPrivilegeEnDecrypt(&uFileName, EPT_PRIVILEGE_DECRYPT);
@@ -191,7 +246,7 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			if (STATUS_SUCCESS != Status)
 			{
 				DbgPrint("MessageNotifyCallback->EPT_PRIVILEGE_ENCRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
-				return Status;
+				/*return Status;*/
 			}
 
 			Status = EptPrivilegeEnDecrypt(&uFileName, EPT_PRIVILEGE_ENCRYPT);
@@ -205,12 +260,10 @@ NTSTATUS MessageNotifyCallback(IN PVOID PortCookie, IN PVOID InputBuffer, IN ULO
 			break;
 		}
 		}
-		
-
-		
 
 	}
 
+	
 	
 	return STATUS_SUCCESS;
 }

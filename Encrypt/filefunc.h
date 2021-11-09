@@ -17,10 +17,8 @@ NTSTATUS EptIsTargetFile(IN PCFLT_RELATED_OBJECTS FltObjects);
 
 NTSTATUS EptWriteEncryptHeader(IN OUT PFLT_CALLBACK_DATA* Data, IN PCFLT_RELATED_OBJECTS FltObjects);
 
-NTSTATUS EptAppendEncryptHeaderAndEncrypt(IN PCFLT_RELATED_OBJECTS FltObjects, IN OUT PEPT_STREAM_CONTEXT StreamContext);
+NTSTATUS EptRemoveEncryptHeaderAndDecrypt(IN PWCHAR FileName);
 
-NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName);
-
-NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName);
+NTSTATUS EptAppendEncryptHeaderAndEncryptEx(IN PWCHAR FileName);
 
 VOID EptFileCacheClear(IN PFILE_OBJECT pFileObject);

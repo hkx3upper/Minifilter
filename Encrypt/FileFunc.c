@@ -459,8 +459,14 @@ PFLT_INSTANCE EptGetVolumeInstance(IN PFLT_FILTER pFilter, IN PUNICODE_STRING pV
 
 
 //特权解密命令对应的执行函数，负责除去加密头，解密数据，修改StreamContext
-NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
+NTSTATUS EptRemoveEncryptHeaderAndDecrypt(IN PWCHAR FileName)
 {
+
+    if (NULL == FileName)
+    {
+        DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FileName is NULL.\n");
+        return EPT_NULL_POINTER;
+    }
 
     NTSTATUS Status;
 
@@ -549,13 +555,16 @@ NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
     if (!NT_SUCCESS(Status))
     {
         //STATUS_SUCCESS
+        //STATUS_END_OF_FILE
         DbgPrint("EptRemoveEncryptHeaderAndDecrypt->FltReadFile read encryptheader failed. Status = %X.\n", Status);
+        Status = EPT_DONT_HAVE_ENCRYPT_HEADER;
         goto EXIT;
     }
 
     if (strncmp(EncryptHeader, FILE_FLAG, strlen(FILE_FLAG)) != 0)
     {
         DbgPrint("EptRemoveEncryptHeaderAndDecrypt->%ws is an unencrypted file.\n", FileName);
+        Status = EPT_DONT_HAVE_ENCRYPT_HEADER;
         goto EXIT;
     }
 
@@ -641,7 +650,7 @@ NTSTATUS EptRemoveEncryptHeaderAndDecrypt(PWCHAR FileName)
 
     DbgPrint("EptRemoveEncryptHeaderAndDecrypt->success origfile = %s\n", ReadBuffer);
 
-    Status = STATUS_SUCCESS;
+    Status = EPT_REMOVE_ENCRYPT_HEADER;
 
 EXIT:
     if (NULL != FileObject)
@@ -685,8 +694,15 @@ EXIT:
 
 
 //特权加密命令，给目标文件加上机密头，加密数据，修改StreamContext
-NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
+NTSTATUS EptAppendEncryptHeaderAndEncryptEx(IN PWCHAR FileName)
 {
+
+    if (NULL == FileName)
+    {
+        DbgPrint("EptAppendEncryptHeaderAndEncryptEx->FileName is NULL.\n");
+        return EPT_NULL_POINTER;
+    }
+
     NTSTATUS Status;
 
     UNICODE_STRING uFileName = { 0 };
@@ -797,15 +813,19 @@ NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
     if (strncmp(FILE_FLAG, ReadBuffer, strlen(FILE_FLAG)) == 0)
     {
         DbgPrint("EptAppendEncryptHeaderAndEncryptEx->File has been already encrypted.\n");
+        Status = EPT_ALREADY_HAVE_ENCRYPT_HEADER;
         goto EXIT;
     }
 
 
     //获取加密后数据的大小
-    if (!EptAesEncrypt((PUCHAR)ReadBuffer, &EncryptedLength, TRUE))
+    if (FileSize > 0)
     {
-        DbgPrint("EptAppendEncryptHeaderAndEncryptEx->EptAesEncrypt count size failed.\n");
-        goto EXIT;
+        if (!EptAesEncrypt((PUCHAR)ReadBuffer, &EncryptedLength, TRUE))
+        {
+            DbgPrint("EptAppendEncryptHeaderAndEncryptEx->EptAesEncrypt count size failed.\n");
+            goto EXIT;
+        }
     }
 
     EncryptedBuffer = FltAllocatePoolAlignedWithTag(Instance, NonPagedPool, (LONGLONG)EncryptedLength + FILE_FLAG_SIZE, EPT_READ_BUFFER_FLAG);
@@ -820,11 +840,16 @@ NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
 
     RtlMoveMemory(EncryptedBuffer + FILE_FLAG_SIZE, ReadBuffer, strlen(ReadBuffer));
 
-    if (!EptAesEncrypt((PUCHAR)EncryptedBuffer + FILE_FLAG_SIZE, &EncryptedLength, FALSE))
+
+    if (FileSize > 0)
     {
-        DbgPrint("EptAppendEncryptHeaderAndEncryptEx->EptAesEncrypt encrypte buffer failed.\n");
-        goto EXIT;
+        if (!EptAesEncrypt((PUCHAR)EncryptedBuffer + FILE_FLAG_SIZE, &EncryptedLength, FALSE))
+        {
+            DbgPrint("EptAppendEncryptHeaderAndEncryptEx->EptAesEncrypt encrypte buffer failed.\n");
+            goto EXIT;
+        }
     }
+    
 
     RtlMoveMemory(EncryptedBuffer, FILE_FLAG, strlen(FILE_FLAG));
     
@@ -877,7 +902,7 @@ NTSTATUS EptAppendEncryptHeaderAndEncryptEx(PWCHAR FileName)
 
     DbgPrint("EptAppendEncryptHeaderAndEncryptEx->success origfile = %s\n", ReadBuffer);
 
-    Status = STATUS_SUCCESS;
+    Status = EPT_APPEND_ENCRYPT_HEADER;
 
 EXIT:
     if (NULL != FileObject)
