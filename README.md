@@ -3,7 +3,7 @@
 
 eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/Resources/EncryptMinifilter.jpg)
 
-eg：![界面1](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Panel.PNG)
+eg：![界面1](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Panel1.PNG)
 
 # 简述：
 
