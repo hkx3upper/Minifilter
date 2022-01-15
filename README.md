@@ -1,6 +1,10 @@
 # Minifilter
 参考《Windows内核安全与驱动开发》的加密解密Minifilter
 
+# 本项目已不再更新，而且其中有不少错误，
+# https://github.com/hkx3upper/FOKS-TROT
+# 在另起新版本中实现了一个比较完整的
+
 eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/Resources/EncryptMinifilter.jpg)
 
 eg：![界面1](https://github.com/hkx3upper/Minifilter/blob/main/Resources/Panel1.PNG)
