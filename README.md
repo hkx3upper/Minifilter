@@ -4,6 +4,7 @@
 # 本项目已不再更新，而且其中有不少错误，
 # https://github.com/hkx3upper/FOKS-TROT
 # 在另起新版本中实现了一个比较完整的
+# 真的，这个项目算个半成品，ReadMe中很多的步骤也存在错误，所以......
 
 eg：![框架](https://github.com/hkx3upper/Minifilter/blob/main/Resources/EncryptMinifilter.jpg)
 
